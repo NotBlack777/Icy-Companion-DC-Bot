@@ -4,12 +4,14 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('uptime')
     .setDescription('View bot uptime'),
 
-  async execute(interaction) {
-    const client = interaction.client;
+  async execute(interaction, clientArg) {
+    const client = clientArg || interaction.client;
 
     const now = Date.now();
 

@@ -4,6 +4,8 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('avatar')
     .setDescription('View a user avatar')

@@ -6,12 +6,14 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('botinfo')
     .setDescription('View bot information'),
 
-  async execute(interaction) {
-    const client = interaction.client;
+  async execute(interaction, clientArg) {
+    const client = clientArg || interaction.client;
 
     const totalMem =
       (os.totalmem() / 1024 / 1024 / 1024)

@@ -1,113 +1,98 @@
 const {
   SlashCommandBuilder,
   EmbedBuilder,
+  ChannelType
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('serverinfo')
     .setDescription('View server information'),
 
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: '❌ This command can only be used in a server.',
+        ephemeral: true
+      });
+    }
+
     const guild = interaction.guild;
 
-    await guild.fetch();
+    try {
+      await guild.fetch();
+    } catch (err) {
+      console.warn(`[SERVERINFO] Could not refresh guild ${guild.id}: ${err.message}`);
+    }
 
-    const owner =
-      await guild.fetchOwner();
+    let ownerText = `<@${guild.ownerId}>`;
+    try {
+      const owner = await guild.fetchOwner();
+      ownerText = `${owner.user.tag} (${owner.user.id})`;
+    } catch (err) {
+      console.warn(`[SERVERINFO] Could not fetch owner for ${guild.id}: ${err.message}`);
+    }
 
-    const textChannels =
-      guild.channels.cache.filter(
-        c => c.type === 0
-      ).size;
-
-    const voiceChannels =
-      guild.channels.cache.filter(
-        c => c.type === 2
-      ).size;
-
-    const categories =
-      guild.channels.cache.filter(
-        c => c.type === 4
-      ).size;
-
-    const emojis =
-      guild.emojis.cache.size;
-
-    const boosts =
-      guild.premiumSubscriptionCount || 0;
-
-    const boostTier =
-      guild.premiumTier;
+    const textChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText).size;
+    const voiceChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildVoice).size;
+    const categories = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
+    const emojis = guild.emojis.cache.size;
+    const boosts = guild.premiumSubscriptionCount || 0;
+    const boostTier = guild.premiumTier ?? 0;
+    const icon = guild.iconURL({ size: 4096 });
 
     const embed = new EmbedBuilder()
-      .setColor(0x7DD3FC)
+      .setColor(0x7dd3fc)
       .setAuthor({
         name: guild.name,
-        iconURL:
-          guild.iconURL({
-            dynamic: true,
-          }),
+        iconURL: icon || undefined
       })
-      .setThumbnail(
-        guild.iconURL({
-          dynamic: true,
-          size: 4096,
-        })
-      )
       .addFields(
         {
           name: '🆔 Server ID',
           value: `\`${guild.id}\``,
-          inline: false,
+          inline: false
         },
         {
           name: '👑 Owner',
-          value: `${owner.user.tag}`,
-          inline: true,
+          value: ownerText,
+          inline: true
         },
         {
           name: '👥 Members',
-          value:
-            `\`${guild.memberCount}\``,
-          inline: true,
+          value: `\`${guild.memberCount ?? 'Unknown'}\``,
+          inline: true
         },
         {
           name: '📅 Created',
-          value: `<t:${Math.floor(
-            guild.createdTimestamp / 1000
-          )}:F>`,
-          inline: false,
+          value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:F>`,
+          inline: false
         },
         {
           name: '💬 Channels',
-          value:
-            `Text: \`${textChannels}\`\n` +
-            `Voice: \`${voiceChannels}\`\n` +
-            `Categories: \`${categories}\``,
-          inline: true,
+          value: `Text: \`${textChannels}\`\nVoice: \`${voiceChannels}\`\nCategories: \`${categories}\``,
+          inline: true
         },
         {
           name: '🚀 Boosts',
-          value:
-            `Level: \`${boostTier}\`\n` +
-            `Boosts: \`${boosts}\``,
-          inline: true,
+          value: `Level: \`${boostTier}\`\nBoosts: \`${boosts}\``,
+          inline: true
         },
         {
           name: '😀 Emojis',
           value: `\`${emojis}\``,
-          inline: true,
-        },
+          inline: true
+        }
       )
       .setFooter({
-        text:
-          `Requested by ${interaction.user.tag}`,
+        text: `Requested by ${interaction.user.tag}`
       })
       .setTimestamp();
 
-    await interaction.reply({
-      embeds: [embed],
-    });
-  },
+    if (icon) embed.setThumbnail(icon);
+
+    return interaction.reply({ embeds: [embed] });
+  }
 };

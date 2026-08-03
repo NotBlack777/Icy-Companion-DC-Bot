@@ -1,21 +1,35 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { getServerConfig, saveServerConfig } = require('../../utils/configManager');
 
 module.exports = {
+  category: 'owner',
+
   data: new SlashCommandBuilder()
     .setName('owner-list')
-    .setDescription('Show all owners'),
+    .setDescription('Show all bot owners for this server'),
 
-  async execute(interaction, client, config) {
+  async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: '❌ This command can only be used in a server.',
+        ephemeral: true
+      });
+    }
 
-    const owners = [
-      config.owner,
-      ...(config.extraOwners || [])
-    ];
+    const config = getServerConfig(interaction.guild.id);
+    const primaryOwner = config.owner || interaction.guild.ownerId;
 
-    const list = owners.map(id => `<@${id}>`).join('\n');
+    config.owner = primaryOwner;
+    config.extraOwners = Array.isArray(config.extraOwners) ? config.extraOwners : [];
+    saveServerConfig(interaction.guild.id, config);
+
+    const owners = [...new Set([primaryOwner, ...config.extraOwners].filter(Boolean))];
+    const list = owners.length
+      ? owners.map((id, index) => `${index === 0 ? '👑 Primary' : '⭐ Extra'}: <@${id}>`).join('\n')
+      : 'None';
 
     return interaction.reply({
-      content: `👑 Owners:\n${list || 'None'}`
+      content: `👑 Owners:\n${list}`
     });
   }
 };
