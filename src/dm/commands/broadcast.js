@@ -1,37 +1,37 @@
 /**
  * Broadcast commands: broadcast, announce, dm.
+ * Icy futuristic UI.
  */
 
+const { EmbedBuilder } = require('discord.js');
 const registry = require('../registry');
 const ui = require('../ui');
-const { resolveServer, serverLabel, getConfigNumber } = require('../../utils/serverResolver');
+const { resolveServer, serverLabel } = require('../../utils/serverResolver');
 
 const SEND_DELAY_MS = 900;
+const { ICY } = ui;
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-/**
- * Best channel to post in when no channel is specified: system channel,
- * else the first text channel the bot can actually send to.
- */
 function pickChannel(guild) {
   const me = guild.members.me;
-
-  if (guild.systemChannel?.permissionsFor(me)?.has('SendMessages')) {
-    return guild.systemChannel;
-  }
-
-  return guild.channels.cache.find(channel =>
-    channel.isTextBased?.() &&
-    channel.viewable &&
-    channel.permissionsFor(me)?.has('SendMessages')
-  ) || null;
+  if (guild.systemChannel?.permissionsFor(me)?.has('SendMessages')) return guild.systemChannel;
+  return guild.channels.cache.find(c => c.isTextBased?.() && c.viewable && c.permissionsFor(me)?.has('SendMessages')) || null;
 }
 
-/* ---------------- BROADCAST ---------------- */
+function icyDivider() { return `\`\`\`\n${'═'.repeat(44)}\n\`\`\``; }
 
+function announcementEmbed(ctx, message) {
+  return new EmbedBuilder()
+    .setColor(ICY.neon)
+    .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+    .setTitle('📢 Announcement')
+    .setDescription(message)
+    .setFooter({ text: '✦ Icy Companion — Broadcast' })
+    .setTimestamp();
+}
+
+/* ─── BROADCAST ─────────────────────────────────────────────────── */
 registry.define({
   name: 'broadcast',
   aliases: ['bc'],
@@ -42,47 +42,40 @@ registry.define({
   args: [{ name: 'message', type: 'rest', required: true }],
   async run({ ctx, args }) {
     const guilds = [...ctx.client.guilds.cache.values()];
-
-    const embed = ui.info('📢 Announcement', args.message)
-      .setFooter({ text: `From ${ctx.client.user.username}` });
-
-    const sent = [];
-    const failed = [];
+    const sent = [], failed = [];
 
     for (const guild of guilds) {
       const channel = pickChannel(guild);
-
-      if (!channel) {
-        failed.push(`${serverLabel(guild)} — no sendable channel`);
-        continue;
-      }
-
+      if (!channel) { failed.push(`${serverLabel(guild)} — no sendable channel`); continue; }
       try {
-        await channel.send({ embeds: [embed] });
+        await channel.send({ embeds: [announcementEmbed(ctx, args.message)] });
         sent.push(serverLabel(guild));
-      } catch (err) {
-        failed.push(`${serverLabel(guild)} — ${err.message}`);
-      }
-
+      } catch (err) { failed.push(`${serverLabel(guild)} — ${err.message}`); }
       await sleep(SEND_DELAY_MS);
     }
 
-    const result = ui.success('Broadcast Sent', ui.bullet([
-      `**Delivered:** \`${sent.length}\``,
-      `**Failed:** \`${failed.length}\``,
-      `**Total:** \`${guilds.length}\``
-    ]));
+    const embed = new EmbedBuilder()
+      .setColor(ICY.success)
+      .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+      .setTitle('✅ Broadcast Sent')
+      .setDescription([
+        icyDivider(),
+        ui.bullet([
+          `**✅ Delivered:** \`${sent.length}\` server${sent.length!==1?'s':''}`,
+          `**❌ Failed:** \`${failed.length}\``,
+          `**📊 Total:** \`${guilds.length}\``,
+        ]),
+        failed.length ? `\n**Failures:**\n${ui.truncate(failed.slice(0,10).join('\n'), 1000)}` : '',
+        icyDivider(),
+      ].join('\n'))
+      .setFooter({ text: `✦ ${sent.length}/${guilds.length} delivered` })
+      .setTimestamp();
 
-    if (failed.length) {
-      result.addFields({ name: 'Failures', value: ui.truncate(failed.slice(0, 10).join('\n')) });
-    }
-
-    return { embeds: [result] };
+    return { embeds: [embed] };
   }
 });
 
-/* ---------------- ANNOUNCE ---------------- */
-
+/* ─── ANNOUNCE ─────────────────────────────────────────────────── */
 registry.define({
   name: 'announce',
   group: 'broadcast',
@@ -90,43 +83,44 @@ registry.define({
   desc: 'Post an announcement in a specific channel',
   secure: true,
   args: [
-    { name: 'server', type: 'server', required: true },
+    { name: 'server',  type: 'server',  required: true },
     { name: 'channel', type: 'channel', required: true },
-    { name: 'message', type: 'rest', required: true }
+    { name: 'message', type: 'rest',   required: true }
   ],
   async run({ ctx, args }) {
     const resolved = resolveServer(ctx.client, args.server);
-    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+    if (!resolved.ok) return { embeds: [ui.error('Server Not Found', resolved.error)] };
 
     const channel = resolved.guild.channels.cache.get(String(args.channel));
-
-    if (!channel?.isTextBased?.()) {
-      return { embeds: [ui.error('Channel not found', `\`${args.channel}\` is not a text channel in **${resolved.guild.name}**.`)] };
-    }
-
-    const embed = ui.info('📢 Announcement', args.message)
-      .setFooter({ text: `From ${ctx.client.user.username}` });
+    if (!channel?.isTextBased?.())
+      return { embeds: [ui.error('Channel Not Found', `\`${args.channel}\` is not a text channel in **${resolved.guild.name}**.`)] };
 
     let posted;
-
-    try {
-      posted = await channel.send({ embeds: [embed] });
-    } catch (err) {
-      return { embeds: [ui.error('Announce failed', err.message)] };
-    }
+    try { posted = await channel.send({ embeds: [announcementEmbed(ctx, args.message)] }); }
+    catch (err) { return { embeds: [ui.error('Announce Failed', err.message)] }; }
 
     return {
-      embeds: [ui.success('Announcement Posted', ui.bullet([
-        `**Server:** ${serverLabel(resolved.guild)}`,
-        `**Channel:** <#${channel.id}>`,
-        `**Message ID:** \`${posted.id}\``
-      ]))]
+      embeds: [new EmbedBuilder()
+        .setColor(ICY.neon)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('✅ Announcement Posted')
+        .setDescription([
+          icyDivider(),
+          ui.bullet([
+            `**Server:** ${serverLabel(resolved.guild)}`,
+            `**Channel:** <#${channel.id}>`,
+            `**Message ID:** \`${posted.id}\``,
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Broadcast' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
-/* ---------------- DM ---------------- */
-
+/* ─── DM ────────────────────────────────────────────────────────── */
 registry.define({
   name: 'dm',
   group: 'broadcast',
@@ -134,40 +128,39 @@ registry.define({
   desc: 'Send a direct message to a user',
   secure: true,
   args: [
-    { name: 'user', type: 'user', required: true },
+    { name: 'user',   type: 'user', required: true },
     { name: 'message', type: 'rest', required: true }
   ],
   async run({ ctx, args }) {
     let user;
+    try { user = await ctx.client.users.fetch(args.user); }
+    catch { return { embeds: [ui.error('User Not Found', `Could not fetch \`${args.user}\`.`)] }; }
+
+    if (user.bot) return { embeds: [ui.error('Cannot DM', 'That user is a bot.')] };
 
     try {
-      user = await ctx.client.users.fetch(args.user);
-    } catch {
-      return { embeds: [ui.error('User not found', `Could not fetch \`${args.user}\`.`)] };
-    }
-
-    if (user.bot) {
-      return { embeds: [ui.error('Cannot DM', 'That user is a bot.')] };
-    }
-
-    const embed = ui.info('📨 Message', args.message)
-      .setFooter({ text: `From ${ctx.client.user.username}` });
-
-    try {
-      await user.send({ embeds: [embed] });
+      await user.send({ embeds: [announcementEmbed(ctx, args.message)] });
     } catch (err) {
-      const reason = err.code === 50007
-        ? 'Their DMs are closed or the bot is blocked.'
-        : err.message;
-
-      return { embeds: [ui.error('Delivery failed', `Could not DM **${user.tag}**.\n> ${reason}`)] };
+      const reason = err.code === 50007 ? 'Their DMs are closed or the bot is blocked.' : err.message;
+      return { embeds: [ui.error('Delivery Failed', `Could not DM **${user.tag}**.\n> ${reason}`)] };
     }
 
     return {
-      embeds: [ui.success('DM Sent', ui.bullet([
-        `**To:** ${user.tag} (\`${user.id}\`)`,
-        `**Message:** ${ui.truncate(args.message, 300)}`
-      ]))]
+      embeds: [new EmbedBuilder()
+        .setColor(ICY.success)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('✅ DM Sent')
+        .setDescription([
+          icyDivider(),
+          ui.bullet([
+            `**To:** ${user.tag} (\`${user.id}\`)`,
+            `**Message:** ${ui.truncate(args.message, 300)}`,
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Direct Message' })
+        .setTimestamp()
+      ]
     };
   }
 });

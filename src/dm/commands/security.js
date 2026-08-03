@@ -1,15 +1,22 @@
 /**
  * Security commands: setpassword, unlock, lock, setup-totp,
  * addowner, removeowner, addjunior, removejunior, ownerlist.
+ *
+ * Icy futuristic UI.
  */
 
 const registry = require('../registry');
-const ui = require('../ui');
-const store = require('../../utils/globalStore');
-const totp = require('../../utils/totp');
+const ui        = require('../ui');
+const store     = require('../../utils/globalStore');
+const totp      = require('../../utils/totp');
 
-/* ---------------- SETPASSWORD ---------------- */
+const { ICY } = ui;
 
+function icyDivider() {
+  return `\`\`\`\n${'═'.repeat(44)}\n\`\`\``;
+}
+
+// ─── SETPASSWORD ──────────────────────────────────────────────────
 registry.define({
   name: 'setpassword',
   aliases: ['setpass'],
@@ -19,40 +26,41 @@ registry.define({
   args: [{ name: 'password', type: 'rest', required: true }],
   async run({ ctx, args }) {
     const password = String(args.password).trim();
-
-    if (password.length < 6) {
-      return { embeds: [ui.error('Too short', 'The password must be at least 6 characters.')] };
-    }
+    if (password.length < 6)
+      return { embeds: [ui.error('Too Short', 'The password must be at least 6 characters.')] };
 
     store.setPassword(password);
     store.unlockSession(ctx.user.id);
 
-    // Delete the plaintext password from the channel if we can.
     let scrubbed = false;
-
     if (ctx.message) {
-      try {
-        await ctx.message.delete();
-        scrubbed = true;
-      } catch {
-        // DMs from users cannot be deleted by bots - expected.
-      }
+      try { await ctx.message.delete(); scrubbed = true; } catch { /* DMs can't be deleted by bots */ }
     }
 
     return {
-      embeds: [ui.success('Password Set', ui.bullet([
-        'The master password is stored as a salted scrypt hash.',
-        'Use `@bot lock` to lock the bot and `@bot unlock <password>` to unlock.',
-        scrubbed
-          ? 'Your message was deleted for safety.'
-          : '⚠️ Delete your message manually — the bot cannot remove user DMs.'
-      ]))]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.success)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('🔐 Password Set')
+        .setDescription([
+          icyDivider(),
+          ui.codeTable({ Status: '✅ Active', Algorithm: 'scrypt (salted hash)' }),
+          '',
+          ui.bullet([
+            'The master password is stored as a **salted scrypt hash** — never plaintext.',
+            'Use `@bot lock` to lock the bot and `@bot unlock <password>` to unlock.',
+            scrubbed ? '✅ Your message was deleted for safety.' : '⚠️ Delete your message manually — the bot cannot remove user DMs.',
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
-/* ---------------- UNLOCK ---------------- */
-
+// ─── UNLOCK ───────────────────────────────────────────────────────
 registry.define({
   name: 'unlock',
   group: 'security',
@@ -60,60 +68,73 @@ registry.define({
   desc: 'Unlock secured commands',
   args: [{ name: 'password', type: 'rest', required: true }],
   async run({ ctx, args }) {
-    const secret = store.getSecurity();
-    const input = String(args.password).trim();
+    const secret   = store.getSecurity();
+    const input    = String(args.password).trim();
+    const pwdOk    = secret.passwordHash && store.verifyPassword(input);
+    const totpOk   = secret.totpSecret  && totp.verifyToken(secret.totpSecret, input);
 
-    if (!secret.passwordHash && !secret.totpSecret) {
-      return { embeds: [ui.warn('Nothing to unlock', 'No password or TOTP is configured. Set one with `@bot setpassword <password>`.')] };
-    }
-
-    // Accept either the master password or a valid 6-digit TOTP code.
-    const passwordOk = secret.passwordHash && store.verifyPassword(input);
-    const totpOk = secret.totpSecret && totp.verifyToken(secret.totpSecret, input);
-
-    if (!passwordOk && !totpOk) {
+    if (!pwdOk && !totpOk) {
       console.warn(`[SECURITY] Failed unlock attempt by ${ctx.user.tag} (${ctx.user.id})`);
       return { embeds: [ui.error('Incorrect', 'That password or code is not valid.')] };
     }
 
     store.setLocked(false);
     store.unlockSession(ctx.user.id);
-
-    if (ctx.message) {
-      await ctx.message.delete().catch(() => null);
-    }
+    if (ctx.message) await ctx.message.delete().catch(() => null);
 
     return {
-      embeds: [ui.success('Unlocked', ui.bullet([
-        `Verified via **${totpOk ? 'TOTP code' : 'password'}**.`,
-        'Secured commands are available for the next **30 minutes**.'
-      ]))]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.success)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('🔓 Session Unlocked')
+        .setDescription([
+          icyDivider(),
+          ui.bullet([
+            `✅ Verified via **${totpOk ? 'TOTP Code' : 'Password'}**.`,
+            '🔒 Secured commands are available for the next **30 minutes**.',
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
-/* ---------------- LOCK ---------------- */
-
+// ─── LOCK ─────────────────────────────────────────────────────────
 registry.define({
   name: 'lock',
   group: 'security',
   usage: '@bot lock',
   desc: 'Lock all secured commands',
   async run() {
-    if (!store.hasPassword() && !store.getSecurity().totpSecret) {
-      return { embeds: [ui.warn('No credentials', 'Set a password first with `@bot setpassword <password>`, otherwise you will lock yourself out.')] };
-    }
+    if (!store.hasPassword() && !store.getSecurity().totpSecret)
+      return { embeds: [ui.warn('No Credentials', 'Set a password first with `@bot setpassword <password>`, otherwise you may lock yourself out.')] };
 
     store.setLocked(true);
 
     return {
-      embeds: [ui.success('Locked', 'All secured commands now require `@bot unlock <password>` first. Active sessions were revoked.')]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.error)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: undefined })
+        .setTitle('🔒 Bot Locked')
+        .setDescription([
+          icyDivider(),
+          ui.bullet([
+            'All secured commands now require `@bot unlock <password>` first.',
+            '⚠️ Active sessions have been revoked.',
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
-/* ---------------- SETUP TOTP ---------------- */
-
+// ─── SETUP-TOTP ───────────────────────────────────────────────────
 registry.define({
   name: 'setup-totp',
   aliases: ['setuptotp', 'totp'],
@@ -124,54 +145,69 @@ registry.define({
   async run({ ctx, args }) {
     const security = store.getSecurity();
 
-    // Step 2: confirm a pending secret with a code from the app.
+    // Step 2: confirm
     if (args.code) {
       const pending = security.totpPending;
-
-      if (!pending) {
-        return { embeds: [ui.error('No pending setup', 'Run `@bot setup-totp` first to generate a secret.')] };
-      }
-
-      if (!totp.verifyToken(pending, args.code)) {
-        return { embeds: [ui.error('Invalid code', 'That code did not match. Codes rotate every 30 seconds — try the current one.')] };
-      }
+      if (!pending)
+        return { embeds: [ui.error('No Pending Setup', 'Run `@bot setup-totp` first to generate a secret.')] };
+      if (!totp.verifyToken(pending, args.code))
+        return { embeds: [ui.error('Invalid Code', 'That code did not match. Codes rotate every 30s — try the current one.')] };
 
       store.setTotpSecret(pending);
       store.unlockSession(ctx.user.id);
-
       if (ctx.message) await ctx.message.delete().catch(() => null);
 
       return {
-        embeds: [ui.success('TOTP Enabled', ui.bullet([
-          'Two-factor authentication is now active.',
-          'Unlock with `@bot unlock <6-digit code>`.',
-          'Your master password still works as a backup.'
-        ]))]
+        embeds: [new require('discord.js').EmbedBuilder()
+          .setColor(ICY.success)
+          .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+          .setTitle('✅ TOTP Enabled')
+          .setDescription([
+            icyDivider(ICY.success),
+            ui.bullet([
+              '✅ Two-factor authentication is now **active**.',
+              '🔑 Unlock with `@bot unlock <6-digit code>`.',
+              '🔐 Your master password still works as a backup.',
+            ]),
+            icyDivider(ICY.success),
+          ].join('\n'))
+          .setFooter({ text: '✦ Icy Companion — 2FA Active' })
+          .setTimestamp()
+        ]
       };
     }
 
-    // Step 1: generate and show a new secret.
+    // Step 1: generate
     const secret = totp.generateSecret();
     store.setTotpPending(secret);
-
     const url = totp.buildOtpAuthUrl(secret, { label: ctx.user.tag, issuer: 'Icy Companion' });
-    const qr = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
+    const qr  = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
 
     return {
-      embeds: [ui.info('🛡️ TOTP Setup', ui.bullet([
-        '**1.** Scan the QR code below with Google Authenticator, Authy or 1Password.',
-        '**2.** Or enter the key manually.',
-        '**3.** Confirm with `@bot setup-totp <6-digit code>`.'
-      ]))
-        .addFields({ name: 'Secret key', value: `\`\`\`\n${secret}\n\`\`\`` })
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.violet)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('🛡️ TOTP Setup')
+        .setDescription([
+          icyDivider(ICY.violet),
+          ui.bullet([
+            '**1.** Scan the QR code below with Google Authenticator, Authy or 1Password.',
+            '**2.** Or enter this key manually.',
+            '**3.** Confirm with `@bot setup-totp <6-digit code>`.',
+          ]),
+          icyDivider(ICY.violet),
+          `**Secret Key:**\n\`\`\`\n${secret}\n\`\`\``,
+          icyDivider(ICY.violet),
+        ].join('\n'))
         .setImage(qr)
-        .setFooter({ text: 'This secret is not active until you confirm a code.' })]
+        .setFooter({ text: '⚠️ This secret is not active until you confirm a code.' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
-/* ---------------- OWNERS ---------------- */
-
+// ─── ADDOWNER ──────────────────────────────────────────────────────
 registry.define({
   name: 'addowner',
   group: 'security',
@@ -181,24 +217,32 @@ registry.define({
   args: [{ name: 'user', type: 'user', required: true }],
   async run({ ctx, args }) {
     const userId = String(args.user);
-
-    if (store.isSuperOwner(userId)) {
+    if (store.isSuperOwner(userId))
       return { embeds: [ui.warn('Already Super Owner', 'That user already has the highest access level.')] };
-    }
-
-    if (store.isGlobalOwner(userId)) {
-      return { embeds: [ui.warn('Already an owner', `<@${userId}> is already a global owner.`)] };
-    }
+    if (store.isGlobalOwner(userId))
+      return { embeds: [ui.warn('Already Owner', `<@${userId}> is already a global owner.`)] };
 
     store.addOwner(userId);
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [ui.success('Owner Added', `${user ? `**${user.tag}**` : `<@${userId}>`} now has global owner access.`)]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.amber)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('⭐ Owner Added')
+        .setDescription([
+          icyDivider(ICY.amber),
+          `✅ ${user ? `**${user.tag}**` : `<@${userId}>`} now has **global owner** access.`,
+          icyDivider(ICY.amber),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
+// ─── REMOVEOWNER ──────────────────────────────────────────────────
 registry.define({
   name: 'removeowner',
   group: 'security',
@@ -208,24 +252,32 @@ registry.define({
   args: [{ name: 'user', type: 'user', required: true }],
   async run({ ctx, args }) {
     const userId = String(args.user);
-
-    if (store.isSuperOwner(userId)) {
-      return { embeds: [ui.error('Cannot remove', 'The Super Owner cannot be removed.')] };
-    }
-
-    if (!store.isGlobalOwner(userId)) {
-      return { embeds: [ui.warn('Not an owner', `<@${userId}> is not a global owner.`)] };
-    }
+    if (store.isSuperOwner(userId))
+      return { embeds: [ui.error('Cannot Remove', 'The Super Owner cannot be removed.')] };
+    if (!store.isGlobalOwner(userId))
+      return { embeds: [ui.warn('Not Owner', `<@${userId}> is not a global owner.`)] };
 
     store.removeOwner(userId);
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [ui.success('Owner Removed', `${user ? `**${user.tag}**` : `<@${userId}>`} no longer has global owner access.`)]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.error)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('⭐ Owner Removed')
+        .setDescription([
+          icyDivider(ICY.error),
+          `❌ ${user ? `**${user.tag}**` : `<@${userId}>`} no longer has global owner access.`,
+          icyDivider(ICY.error),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
+// ─── ADDJUNIOR ────────────────────────────────────────────────────
 registry.define({
   name: 'addjunior',
   group: 'security',
@@ -234,23 +286,33 @@ registry.define({
   args: [{ name: 'user', type: 'user', required: true }],
   async run({ ctx, args }) {
     const userId = String(args.user);
-
-    if (store.isJuniorOwner(userId)) {
-      return { embeds: [ui.warn('Already junior', `<@${userId}> is already a junior owner.`)] };
-    }
+    if (store.isJuniorOwner(userId))
+      return { embeds: [ui.warn('Already Junior', `<@${userId}> is already a junior owner.`)] };
 
     store.addJunior(userId);
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [ui.success('Junior Owner Added', ui.bullet([
-        `${user ? `**${user.tag}**` : `<@${userId}>`} can now use read-only DM commands.`,
-        'Junior owners cannot kick, ban, broadcast or change security settings.'
-      ]))]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.frost)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('🔹 Junior Owner Added')
+        .setDescription([
+          icyDivider(),
+          ui.bullet([
+            `${user ? `**${user.tag}**` : `<@${userId}>`} can now use read-only DM commands.`,
+            '🔒 Junior owners cannot kick, ban, broadcast or change security settings.',
+          ]),
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
+// ─── REMOVEJUNIOR ─────────────────────────────────────────────────
 registry.define({
   name: 'removejunior',
   group: 'security',
@@ -259,20 +321,30 @@ registry.define({
   args: [{ name: 'user', type: 'user', required: true }],
   async run({ ctx, args }) {
     const userId = String(args.user);
-
-    if (!store.isJuniorOwner(userId)) {
-      return { embeds: [ui.warn('Not a junior owner', `<@${userId}> is not a junior owner.`)] };
-    }
+    if (!store.isJuniorOwner(userId))
+      return { embeds: [ui.warn('Not Junior', `<@${userId}> is not a junior owner.`)] };
 
     store.removeJunior(userId);
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [ui.success('Junior Owner Removed', `${user ? `**${user.tag}**` : `<@${userId}>`} no longer has junior access.`)]
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.dimGray)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('🔹 Junior Owner Removed')
+        .setDescription([
+          icyDivider(),
+          `❌ ${user ? `**${user.tag}**` : `<@${userId}>`} no longer has junior access.`,
+          icyDivider(),
+        ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
     };
   }
 });
 
+// ─── OWNERLIST ────────────────────────────────────────────────────
 registry.define({
   name: 'ownerlist',
   aliases: ['owners'],
@@ -288,26 +360,31 @@ registry.define({
       return user ? `**${user.tag}** \`${userId}\`` : `\`${userId}\``;
     }
 
-    const lines = [];
+    const superLabel = data.superOwner ? await label(data.superOwner) : '_not set_';
+    const ownerLabels = data.owners.length ? await Promise.all(data.owners.map(id => label(id))) : [];
+    const juniorLabels = data.juniorOwners.length ? await Promise.all(data.juniorOwners.map(id => label(id))) : [];
 
-    lines.push('**👑 Super Owner**');
-    lines.push(data.superOwner ? `> ${await label(data.superOwner)}` : '> _not set_');
+    const lines = [
+      `**👑 Super Owner**`,
+      `> ${superLabel}`,
+      '',
+      `**⭐ Global Owners (${data.owners.length})**`,
+      ...(ownerLabels.length ? ownerLabels.map(l => `> ${l}`) : ['> _none_']),
+      '',
+      `**🔹 Junior Owners (${data.juniorOwners.length})**`,
+      ...(juniorLabels.length ? juniorLabels.map(l => `> ${l}`) : ['> _none_']),
+    ];
 
-    lines.push('', `**⭐ Global Owners (${data.owners.length})**`);
-    if (data.owners.length) {
-      for (const id of data.owners) lines.push(`> ${await label(id)}`);
-    } else {
-      lines.push('> _none_');
-    }
-
-    lines.push('', `**🔹 Junior Owners (${data.juniorOwners.length})**`);
-    if (data.juniorOwners.length) {
-      for (const id of data.juniorOwners) lines.push(`> ${await label(id)}`);
-    } else {
-      lines.push('> _none_');
-    }
-
-    return { embeds: [ui.info('👑 Owner List', lines.join('\n'))] };
+    return {
+      embeds: [new require('discord.js').EmbedBuilder()
+        .setColor(ICY.amber)
+        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
+        .setTitle('👑 Owner List')
+        .setDescription([ icyDivider(ICY.amber), lines.join('\n'), icyDivider(ICY.amber) ].join('\n'))
+        .setFooter({ text: '✦ Icy Companion — Security' })
+        .setTimestamp()
+      ]
+    };
   }
 });
 
