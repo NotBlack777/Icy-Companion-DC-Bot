@@ -11,11 +11,11 @@ const {
 module.exports = {
   category: 'utility',
   data: new SlashCommandBuilder()
-    .setName('avatar')
-    .setDescription('View a user avatar or profile picture')
+    .setName('pfp')
+    .setDescription('View a user profile picture')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to view')
+        .setDescription('User whose profile picture you want to view')
         .setRequired(false)),
 
   async execute(interaction) {
@@ -31,13 +31,13 @@ module.exports = {
       });
     }
 
-    const links = [`[🔗 Download avatar](${avatar})`];
+    const links = [`[🔗 Download PFP](${avatar})`];
     if (gif && gif !== avatar) links.push(`[🎞️ GIF](${gif})`);
 
     const embed = createEmbed({
       author: { name: `${e('search')} ${userName(target)}`, iconURL: avatar },
       description: [
-        '### 🖼️ Avatar / PFP',
+        '### 🖼️ Profile Picture',
         `> **User:** ${userName(target)}`,
         '',
         links.join('  •  ')

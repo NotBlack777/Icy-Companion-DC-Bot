@@ -25,6 +25,12 @@ const ui = require('./src/dm/ui');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+// Keep owner DM commands mention-only by default so they do not clutter the
+// public slash-command list. Set ENABLE_DM_SLASH_COMMANDS=true on a private
+// control-bot deployment if slash access is wanted there instead.
+const ENABLE_DM_SLASH_COMMANDS = /^(1|true|yes|on)$/i.test(
+  process.env.ENABLE_DM_SLASH_COMMANDS || ''
+);
 
 if (!TOKEN) {
   console.log('❌ TOKEN missing');
@@ -58,7 +64,8 @@ client.commands = new Collection();
 /* ---------------- COMMAND LOADING ---------------- */
 
 /**
- * File commands plus the auto-generated slash versions of every DM command.
+ * Load server commands and, only when explicitly enabled, the generated
+ * slash versions of the owner DM commands.
  */
 function loadAllCommands() {
   const result = loadCommands(client);
@@ -66,24 +73,28 @@ function loadAllCommands() {
   let dmLoaded = 0;
   let dmFailed = 0;
 
-  for (const command of dmSlash.buildAll()) {
-    try {
-      const name = command.data.name.toLowerCase();
+  if (ENABLE_DM_SLASH_COMMANDS) {
+    for (const command of dmSlash.buildAll()) {
+      try {
+        const name = command.data.name.toLowerCase();
 
-      if (client.commands.has(name)) {
-        console.log(`[DM SLASH] Skipped duplicate name: ${name}`);
-        continue;
+        if (client.commands.has(name)) {
+          console.log(`[DM SLASH] Skipped duplicate name: ${name}`);
+          continue;
+        }
+
+        client.commands.set(name, command);
+        dmLoaded++;
+      } catch (err) {
+        dmFailed++;
+        console.log(`[DM SLASH] Failed to build ${command?.dmCommand}: ${err.message}`);
       }
-
-      client.commands.set(name, command);
-      dmLoaded++;
-    } catch (err) {
-      dmFailed++;
-      console.log(`[DM SLASH] Failed to build ${command?.dmCommand}: ${err.message}`);
     }
-  }
 
-  console.log(`📨 Registered ${dmLoaded} DM slash commands${dmFailed ? ` (${dmFailed} failed)` : ''}`);
+    console.log(`📨 Registered ${dmLoaded} DM slash commands${dmFailed ? ` (${dmFailed} failed)` : ''}`);
+  } else {
+    console.log('📨 DM slash commands disabled — use @bot <command> in DMs.');
+  }
 
   return { ...result, dmLoaded, dmFailed };
 }

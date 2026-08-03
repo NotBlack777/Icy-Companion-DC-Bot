@@ -1,5 +1,5 @@
 /**
- * The @bot help / /dm-help command panel.
+ * The @bot help command panel (or /dm-help on an enabled private control bot).
  *
  * This uses the same calm, paged layout as the server help menu: a small
  * overview page, one category per page, and compact controls underneath.
@@ -18,8 +18,13 @@ const registry = require('./registry');
 const loadDmCommands = require('./loadCommands');
 const ui = require('./ui');
 const store = require('../utils/globalStore');
+const { e } = require('../utils/uiHelper');
 
 const { ICY } = ui;
+
+function icon(name, fallback) {
+  return e(name) || fallback;
+}
 
 const HOME_ID = 'home';
 const DM_HELP_PREFIX = 'dm_help_';
@@ -48,8 +53,22 @@ const GROUP_COLORS = {
   moderation: ICY.pink
 };
 
-// Unicode emoji only for now. Custom emoji can be added later without
-// changing the layout or component IDs.
+// These keys match the emoji names accepted by /store-emoji. When a custom
+// value is stored, the DM panel picks it up automatically; the fallback keeps
+// the panel fully usable with regular Unicode emoji.
+const GROUP_EMOJI_KEYS = {
+  info: 'commands',
+  delete: 'delete',
+  broadcast: 'broadcast',
+  management: 'settings',
+  reports: 'chart',
+  staff: 'staff',
+  dmlogger: 'dmlogger',
+  privacy: 'privacy',
+  security: 'security',
+  moderation: 'moderation'
+};
+
 const FALLBACK_GROUP_EMOJIS = {
   info: '📋',
   delete: '🗑️',
@@ -73,7 +92,10 @@ function visibleGroups(userId) {
   return registry.GROUPS
     .map(group => ({
       ...group,
-      emoji: group.emoji || FALLBACK_GROUP_EMOJIS[group.id] || '📁',
+      emoji: icon(
+        GROUP_EMOJI_KEYS[group.id],
+        group.emoji || FALLBACK_GROUP_EMOJIS[group.id] || '📁'
+      ),
       commands: registry
         .byGroup(group.id)
         .filter(command => store.hasTier(userId, command.tier))
@@ -93,7 +115,7 @@ function helpCategories(userId) {
     {
       id: HOME_ID,
       label: 'Home',
-      emoji: '🏠',
+      emoji: icon('home', '🏠'),
       color: ICY.frost,
       description: 'A quick overview of your DM command hub',
       commands: []
@@ -170,10 +192,10 @@ function usageParts(command) {
 }
 
 function commandBadge(command, locked) {
-  if (command.secure) return locked ? LOCKED_BADGE : '🛡️';
-  if (command.tier === 'owner') return '⭐';
-  if (command.tier === 'junior') return '🔹';
-  return '✨';
+  if (command.secure) return locked ? icon('locked', LOCKED_BADGE) : icon('security', '🛡️');
+  if (command.tier === 'owner') return icon('premium', '⭐');
+  if (command.tier === 'junior') return icon('info', '🔹');
+  return icon('sparkles', '✨');
 }
 
 function commandRow(command, locked) {
@@ -201,33 +223,36 @@ function buildHomePage(ctx, categories, page) {
   const locked = store.isLocked() && !store.isSessionUnlocked(ctx.user.id);
   const groups = categories.slice(1);
   const total = totalCommands(categories);
-  const badge = locked ? LOCKED_BADGE : READY_BADGE;
+  const badge = locked ? icon('locked', LOCKED_BADGE) : icon('unlocked', READY_BADGE);
   const status = locked ? 'Locked actions need an unlock first.' : 'Your command hub is ready.';
+  const statusIcon = locked ? icon('locked', LOCKED_BADGE) : icon('success', '✅');
+  const ice = icon('ice', '🧊');
+  const home = icon('home', '🏠');
 
   const categoryLines = groups.length
     ? groups.map(group =>
       `${group.emoji} **${group.label}** — ${group.commands.length} command${group.commands.length === 1 ? '' : 's'}`
     )
-    : ['💤 No commands are available for this account yet.'];
+    : [`${icon('sleep', '💤')} No commands are available for this account yet.`];
 
   return embedBase(ctx, locked ? ICY.lava : ICY.frost)
     .setDescription([
-      '### ❄️ DM Command Hub',
+      `### ${icon('ice', '❄️')} DM Command Hub`,
       '> A calm little control room for your servers.',
       '',
       `${badge} **${tierLabel(ctx.user.id)}**`,
-      `> ${locked ? '🔒' : '✅'} ${status}`,
+      `> ${statusIcon} ${status}`,
       '',
-      '📊 **At a glance**',
-      `> 🧊 **${total}** command${total === 1 ? '' : 's'}  •  🗂️ **${groups.length}** section${groups.length === 1 ? '' : 's'}`,
+      `${icon('chart', '📊')} **At a glance**`,
+      `> ${ice} **${total}** command${total === 1 ? '' : 's'}  •  ${icon('folder', '🗂️')} **${groups.length}** section${groups.length === 1 ? '' : 's'}`,
       '',
-      '🧭 **Pick a section below**',
+      `${icon('compass', '🧭')} **Pick a section below**`,
       ...categoryLines,
       '',
-      '💡 **Quick tips**',
+      `${icon('bulb', '💡')} **Quick tips**`,
       '> Use `#1` for a server config number, or paste the full server ID.',
-      '> Every DM command is also available as a slash command.',
-      locked ? '> Unlock with `@bot unlock <password>` or a TOTP code.' : '> Keep it chill — choose a section and tap around.'
+      '> Use `@bot <command>` here; slash access is kept off this bot by default.',
+      locked ? `> Unlock with \`@bot unlock <password>\` or a TOTP code.` : `> Keep it chill — choose a section and tap ${home} around.`
     ].join('\n'))
     .setFooter({ text: `Page ${page + 1}/${categories.length} • ${total} commands • DM control room` });
 }
@@ -235,17 +260,20 @@ function buildHomePage(ctx, categories, page) {
 function buildCategoryPage(ctx, category, categories, page) {
   const locked = store.isLocked() && !store.isSessionUnlocked(ctx.user.id);
   const rows = category.commands.map(command => commandRow(command, locked));
+  const state = locked
+    ? `• ${icon('locked', LOCKED_BADGE)} Secured actions are locked`
+    : `• ${icon('ice', '🌊')} Ready when you are`;
 
   return embedBase(ctx, category.color || ICY.frost)
     .setDescription([
       `### ${category.emoji} ${category.label}`,
       `> ${category.description}`,
       '',
-      `**${category.commands.length} command${category.commands.length === 1 ? '' : 's'}**  ${locked ? '• 🔒 Secured actions are locked' : '• 🌊 Ready when you are'}`,
+      `**${category.commands.length} command${category.commands.length === 1 ? '' : 's'}**  ${state}`,
       '',
-      rows.length ? rows.join('\n\n') : '💤 Nothing is available in this section yet.',
+      rows.length ? rows.join('\n\n') : `${icon('sleep', '💤')} Nothing is available in this section yet.`,
       '',
-      '💬 Use the exact format shown above. Tap 🏠 for the overview.'
+      `${icon('chat', '💬')} Use the exact format shown above. Tap ${icon('home', '🏠')} for the overview.`
     ].join('\n'))
     .setFooter({
       text: `Page ${page + 1}/${categories.length} • ${category.commands.length} commands • Choose another section below`
@@ -271,27 +299,27 @@ function buildDmHelpComponents(page, categories) {
   const navigationRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(DM_HELP_IDS.first)
-      .setEmoji('⏮️')
+      .setEmoji(icon('first', '⏮️'))
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
       .setCustomId(DM_HELP_IDS.previous)
-      .setEmoji('◀️')
+      .setEmoji(icon('previous', '◀️'))
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
       .setCustomId(DM_HELP_IDS.home)
-      .setEmoji('🏠')
+      .setEmoji(icon('home', '🏠'))
       .setStyle(ButtonStyle.Success)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
       .setCustomId(DM_HELP_IDS.next)
-      .setEmoji('▶️')
+      .setEmoji(icon('next', '▶️'))
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage === lastPage),
     new ButtonBuilder()
       .setCustomId(DM_HELP_IDS.last)
-      .setEmoji('⏭️')
+      .setEmoji(icon('last', '⏭️'))
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === lastPage)
   );
@@ -299,7 +327,7 @@ function buildDmHelpComponents(page, categories) {
   const selectMenuRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(DM_HELP_IDS.select)
-      .setPlaceholder(`🧭 ${categories[currentPage].label} • Choose a section`)
+      .setPlaceholder(`${icon('compass', '🧭')} ${categories[currentPage].label} • Choose a section`)
       .addOptions(
         categories.map((category, index) => ({
           label: category.label,

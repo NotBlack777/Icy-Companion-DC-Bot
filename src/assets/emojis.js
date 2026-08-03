@@ -6,6 +6,7 @@
  * swapped in later without changing command code.
  */
 module.exports = {
+  // Existing /bot-info keys
   success: '✅',
   settings: '⚙️',
   search: '🔍',
@@ -16,5 +17,28 @@ module.exports = {
   file: '📄',
   error: '❌',
   commands: '📚',
-  info: 'ℹ️'
+  info: 'ℹ️',
+
+  // Help/navigation keys. These are Unicode until custom versions are stored.
+  delete: '🗑️',
+  broadcast: '📢',
+  staff: '⭐',
+  dmlogger: '📨',
+  privacy: '🔒',
+  security: '🛡️',
+  moderation: '⚠️',
+  locked: '🔒',
+  unlocked: '🔓',
+  sparkles: '✨',
+  ice: '🧊',
+  folder: '🗂️',
+  chart: '📊',
+  compass: '🧭',
+  bulb: '💡',
+  chat: '💬',
+  sleep: '💤',
+  first: '⏮️',
+  previous: '◀️',
+  next: '▶️',
+  last: '⏭️'
 };

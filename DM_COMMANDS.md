@@ -1,13 +1,15 @@
 # Icy Companion — DM Command System
 
-Every command below works **two ways**:
+Every command below works from a DM by mentioning the bot:
 
 ```
 @Icy Companion kick #1 123456789012345678 spamming
-/kick server:#1 user:123456789012345678 reason:spamming
 ```
 
-Both paths run the exact same code, so they can never drift apart.
+The optional slash bridge runs the exact same code, but it is disabled on the
+main bot by default so owner-only DM commands do not clutter its `/` menu. Set
+`ENABLE_DM_SLASH_COMMANDS=true` on a private control-bot deployment to enable
+those slash commands there.
 
 ---
 
@@ -19,6 +21,8 @@ Add your Discord user ID to `.env`:
 TOKEN=your-bot-token
 CLIENT_ID=your-application-id
 SUPER_OWNER_ID=your-discord-user-id
+# Optional: only enable on a private control-bot deployment
+ENABLE_DM_SLASH_COMMANDS=false
 ```
 
 `SUPER_OWNER_ID` is what unlocks the DM panel. Without it the bot logs a
@@ -33,7 +37,7 @@ Then DM the bot:
 The help panel opens on a compact home page. Use the emoji buttons or the
 category picker to move between sections; commands are shown one category at
 a time so the panel stays readable on mobile. Custom emoji can be added later
-with `/store-emoji` — the panel currently uses Unicode emoji everywhere.
+with `/import-emojis` (or `/store-emoji`) — Unicode emoji remain the fallback.
 
 ---
 
@@ -224,10 +228,12 @@ Codes tolerate ±30s of clock drift.
 
 ---
 
-## Slash command names
+## Optional slash command names
 
-Multi-word and conflicting commands are renamed for Discord, which does
-not allow spaces in command names:
+The main bot is mention-only for DM commands by default. If
+`ENABLE_DM_SLASH_COMMANDS=true` is enabled on a private control-bot
+deployment, multi-word and conflicting commands are renamed for Discord,
+which does not allow spaces in command names:
 
 | DM command                 | Slash command        |
 | -------------------------- | -------------------- |
@@ -272,6 +278,16 @@ These are normal in-server slash commands, shown in `/help`.
 
 The three `ignore-*` commands **toggle** — running one twice un-ignores.
 Owners cannot be ignored, so nobody can lock themselves out.
+
+### 🖼️ Profile media
+| Command | Description |
+| --- | --- |
+| `/avatar [user]` | View an avatar or PFP, including a GIF link when available |
+| `/pfp [user]` | View a user's profile picture |
+| `/banner [user]` | View a user's profile banner |
+| `/gif-banner [user]` | Get the animated banner when the user has one |
+| `/profile-assets [user]` | View all available PFP and banner links |
+| `/import-emojis` | Import matching custom UI emojis from the current server (Super Owner) |
 
 ### 🎲 Fun
 | Command | Description |

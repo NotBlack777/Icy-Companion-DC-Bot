@@ -2,8 +2,8 @@ const { SlashCommandBuilder } = require('discord.js');
 const { createEmbed, e } = require('../../utils/uiHelper');
 const {
   fetchUser,
-  avatarUrl,
-  gifAvatarUrl,
+  bannerUrl,
+  gifBannerUrl,
   userName,
   requestedBy
 } = require('../../utils/profileMedia');
@@ -11,41 +11,42 @@ const {
 module.exports = {
   category: 'utility',
   data: new SlashCommandBuilder()
-    .setName('avatar')
-    .setDescription('View a user avatar or profile picture')
+    .setName('banner')
+    .setDescription('View a user profile banner')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to view')
+        .setDescription('User whose banner you want to view')
         .setRequired(false)),
 
   async execute(interaction) {
     const selected = interaction.options.getUser('user') || interaction.user;
     const target = await fetchUser(selected);
-    const avatar = avatarUrl(target);
-    const gif = gifAvatarUrl(target);
+    const banner = bannerUrl(target);
+    const gif = gifBannerUrl(target);
 
-    if (!avatar) {
+    if (!banner) {
       return interaction.reply({
-        content: `${e('error')} I couldn't find a profile picture for **${userName(target)}**.`,
+        content: `${e('error')} **${userName(target)}** does not have a profile banner.`,
         ephemeral: true
       });
     }
 
-    const links = [`[🔗 Download avatar](${avatar})`];
-    if (gif && gif !== avatar) links.push(`[🎞️ GIF](${gif})`);
+    const links = [`[🔗 Download banner](${banner})`];
+    if (gif && gif !== banner) links.push(`[🎞️ GIF banner](${gif})`);
 
     const embed = createEmbed({
-      author: { name: `${e('search')} ${userName(target)}`, iconURL: avatar },
+      author: { name: `${e('file')} ${userName(target)}`, iconURL: target.displayAvatarURL({ size: 256 }) },
       description: [
-        '### 🖼️ Avatar / PFP',
+        '### 🖼️ Profile Banner',
         `> **User:** ${userName(target)}`,
+        `> **Format:** ${gif ? 'Animated GIF' : 'Static image'}`,
         '',
         links.join('  •  ')
       ].join('\n'),
-      image: avatar,
+      image: banner,
       footer: { text: `Requested by ${requestedBy(interaction)}` },
       timestamp: true,
-      color: 0x00d4ff
+      color: 0x7df9ff
     });
 
     return interaction.reply({ embeds: [embed] });
