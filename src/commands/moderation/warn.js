@@ -38,6 +38,37 @@ module.exports = {
 
     const count = config.warnings[user.id].length;
 
+    // ─── Warning auto-actions ───────────────────────────────────
+    const warnActions = Array.isArray(config.warnActions) ? config.warnActions : [];
+    const triggered = warnActions.filter(a => count >= a.threshold).sort((a, b) => b.threshold - a.threshold)[0];
+
+    let autoAction = null;
+    if (triggered && member) {
+      try {
+        switch (triggered.action) {
+          case 'timeout': {
+            const duration = new Date(Date.now() + (triggered.timeoutMs || 600000));
+            await member.disableCommunicationUntil(duration, `[Auto-Action] ${count} warnings — ${reason}`);
+            autoAction = `🔇 Timed out for ${Math.round((triggered.timeoutMs || 600000) / 60000)} min`;
+            break;
+          }
+          case 'kick':
+            await member.kick(`[Auto-Action] ${count} warnings — ${reason}`);
+            autoAction = '👢 Kicked';
+            break;
+          case 'ban':
+            await interaction.guild.bans.create(user.id, { reason: `[Auto-Action] ${count} warnings — ${reason}` });
+            autoAction = '🔨 Banned';
+            break;
+          case 'clear':
+            config.warnings[user.id] = [];
+            saveServerConfig(interaction.guild.id, config);
+            autoAction = '🗑️ Warnings cleared';
+            break;
+        }
+      } catch {}
+    }
+
     // Try to DM the user
     try {
       if (member) {
@@ -72,6 +103,7 @@ module.exports = {
           `  │  ID   : ${user.id}`,
           `  │  By   : ${interaction.user.tag}`,
           `  │  Reason: ${reason}`,
+          autoAction ? `  │  ⚡ Auto: ${autoAction}` : '',
           `  ╰────────────────────────`,
           '```',
         ].join('\n'))

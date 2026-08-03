@@ -37,7 +37,10 @@ function createDefaultConfig(guildId) {
     owner: null,
     extraOwners: [],
 
+    // Legacy single staff role (migrated to staffRoles array)
     staffRole: null,
+    // Multiple staff roles
+    staffRoles: [],
     attendanceChannel: null,
 
     ignoreRoles: [],
@@ -51,7 +54,41 @@ function createDefaultConfig(guildId) {
       users: {}
     },
 
-    excuses: []
+    excuses: [],
+
+    // Purge settings
+    purgeLogChannel: null,
+    modLogChannel: null,
+
+    // Auto-moderation filters
+    autoMod: {
+      enabled: false,
+      linkFilter: false,
+      inviteFilter: false,
+      spamFilter: false,
+      capsFilter: false,
+      mentionSpam: false,
+      mentionSpamThreshold: 5,
+      wordFilter: false,
+      filteredWords: [],
+      action: 'delete', // 'delete', 'warn', 'timeout'
+      timeoutDuration: 60, // seconds
+      logChannel: null
+    },
+
+    // Custom embed colors
+    embedColors: {
+      success: null,
+      error: null,
+      warn: null,
+      info: null
+    },
+
+    // Virtual staff (users added as staff without a role)
+    virtualStaff: [],
+
+    // Warning auto-actions: [{ threshold: 3, action: 'timeout', timeoutMs: 600000 }]
+    warnActions: []
   };
 }
 
@@ -69,6 +106,31 @@ function normalizeConfig(guildId, data = {}) {
   config.ignoreChannels = Array.isArray(data.ignoreChannels) ? data.ignoreChannels : [];
   config.remindUsers = Array.isArray(data.remindUsers) ? data.remindUsers : [];
   config.excuses = Array.isArray(data.excuses) ? data.excuses : [];
+  config.virtualStaff = Array.isArray(data.virtualStaff) ? data.virtualStaff : [];
+  config.filteredWords = Array.isArray(data.filteredWords) ? data.filteredWords : [];
+
+  // Migrate legacy single staffRole to staffRoles array
+  config.staffRoles = Array.isArray(data.staffRoles) ? data.staffRoles : [];
+  if (data.staffRole && !config.staffRoles.includes(data.staffRole)) {
+    config.staffRoles.push(data.staffRole);
+  }
+  // Keep staffRole as the primary for backward compat (first role)
+  config.staffRole = config.staffRoles[0] || null;
+
+  // Normalize autoMod settings
+  const defaultAutoMod = createDefaultConfig(guildId).autoMod;
+  config.autoMod = {
+    ...defaultAutoMod,
+    ...(data.autoMod && typeof data.autoMod === 'object' ? data.autoMod : {})
+  };
+  config.autoMod.filteredWords = Array.isArray(config.autoMod.filteredWords) ? config.autoMod.filteredWords : [];
+
+  // Normalize embed colors
+  const defaultColors = createDefaultConfig(guildId).embedColors;
+  config.embedColors = {
+    ...defaultColors,
+    ...(data.embedColors && typeof data.embedColors === 'object' ? data.embedColors : {})
+  };
 
   // Attendance used to be stored either as { users: { userId: day } }
   // or as a flat object. Normalize both formats to the supported shape.

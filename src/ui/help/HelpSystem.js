@@ -63,7 +63,20 @@ const HELP_CATEGORIES = [
       { name: '/warnings',       desc: 'View a user\'s warning history' },
       { name: '/clear-warnings', desc: 'Clear all warnings from a user' },
       { name: '/soft-ban',      desc: 'Ban + unban to clear messages' },
-      { name: '/purge',          desc: 'Bulk delete messages' },
+      { name: '/ban',            desc: 'Ban a user from the server' },
+      { name: '/unban',          desc: 'Unban a user by ID' },
+      { name: '/kick',           desc: 'Kick a user from the server' },
+      { name: '/tempban',        desc: 'Tempban with auto-unban timer' },
+      { name: '/slowmode',       desc: 'Set channel slowmode delay' },
+      { name: '/lock',           desc: 'Lock a channel' },
+      { name: '/unlock',         desc: 'Unlock a channel' },
+      { name: '/nuke',           desc: 'Clone + reset a channel' },
+      { name: '/nick',           desc: "Change a user's nickname" },
+      { name: '/purge',          desc: 'Bulk delete with 15+ filter types' },
+      { name: '/purge-links',    desc: 'Quick-purge messages with links' },
+      { name: '/purge-images',   desc: 'Quick-purge images/videos/audio' },
+      { name: '/purge-bots',     desc: 'Quick-purge bot messages' },
+      { name: '/purge-emojis',   desc: 'Quick-purge emoji/sticker messages' },
     ]
   },
   {
@@ -81,7 +94,7 @@ const HELP_CATEGORIES = [
       { name: '/attendance-log',     desc: 'View recent attendance logs' },
       { name: '/attendance-reset',   desc: 'Reset attendance and streaks' },
       { name: '/top-staff',         desc: 'View the attendance streak leaderboard' },
-      { name: '/set-staff-role',    desc: 'Set the staff role' },
+      { name: '/set-staff-role',    desc: 'Add/remove staff roles (multiple supported)' },
       { name: '/set-attendance-channel', desc: 'Set the attendance channel' }
     ]
   },
@@ -92,9 +105,13 @@ const HELP_CATEGORIES = [
     color: ICY.amber,
     description: 'Staff management commands.',
     commands: [
-      { name: '/staff-add',    desc: 'Add a user to the staff role' },
-      { name: '/staff-remove', desc: 'Remove a user from staff' },
-      { name: '/staff-list',   desc: 'List staff with attendance status' },
+      { name: '/staff-add',        desc: 'Add a user to staff role(s)' },
+      { name: '/staff-remove',     desc: 'Remove a user from staff role(s)' },
+      { name: '/staff-list',       desc: 'List staff with attendance status' },
+      { name: '/staff-info',       desc: 'Detailed info about a staff member' },
+      { name: '/staff-add-user',   desc: 'Add user as virtual staff (no role)' },
+      { name: '/staff-remove-user', desc: 'Remove user from virtual staff' },
+      { name: '/staff-users',      desc: 'List all virtual staff members' },
     ]
   },
   {
@@ -159,13 +176,19 @@ const HELP_CATEGORIES = [
     label: 'Settings',
     emoji: '⚙️',
     color: ICY.glacier,
-    description: 'Configure prefix and ignore lists.',
+    description: 'Configure prefix, ignore lists, auto-mod, and colors.',
     commands: [
-      { name: '/setprefix',      desc: 'Change the text command prefix' },
-      { name: '/ignore-role',    desc: 'Toggle a role being ignored' },
-      { name: '/ignore-user',    desc: 'Toggle a user being ignored' },
-      { name: '/ignore-channel', desc: 'Toggle a channel being ignored' },
-      { name: '/ignore-list',    desc: 'View everything being ignored' }
+      { name: '/setprefix',        desc: 'Change the text command prefix' },
+      { name: '/ignore-role',      desc: 'Toggle a role being ignored' },
+      { name: '/ignore-user',      desc: 'Toggle a user being ignored' },
+      { name: '/ignore-channel',   desc: 'Toggle a channel being ignored' },
+      { name: '/ignore-list',      desc: 'View everything being ignored' },
+      { name: '/set-automod',      desc: 'Configure auto-moderation filters' },
+      { name: '/word-filter',      desc: 'Manage auto-mod word filter list' },
+      { name: '/set-embed-colors', desc: 'Customize bot embed colors' },
+      { name: '/set-mod-log',      desc: 'Set the mod log channel' },
+      { name: '/set-purge-log',    desc: 'Set the purge log channel' },
+      { name: '/set-warn-actions', desc: 'Auto-punish at warning thresholds' },
     ]
   }
 ];
