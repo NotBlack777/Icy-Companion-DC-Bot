@@ -13,6 +13,7 @@ const {
 const loadCommands = require('./src/handlers/loadCommands');
 const interactionCreate = require('./src/handlers/interactionCreate');
 const messageCreate = require('./src/handlers/messageCreate');
+const dmEvents = require('./src/handlers/dmEvents');
 
 const dm = require('./src/dm');
 const dmSlash = require('./src/dm/slash');
@@ -37,11 +38,19 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.GuildMessageReactions
   ],
 
-  // Required to receive DM events for channels not in the cache.
-  partials: [Partials.Channel, Partials.Message]
+  // Required to receive DM events for uncached channels/messages,
+  // including reactions on messages the bot has not seen this session.
+  partials: [
+    Partials.Channel,
+    Partials.Message,
+    Partials.Reaction,
+    Partials.User
+  ]
 });
 
 client.commands = new Collection();
@@ -158,6 +167,9 @@ client.on(interactionCreate.name, (interaction) =>
 client.on(messageCreate.name, (message) =>
   messageCreate.execute(message, client)
 );
+
+// DM reactions, edits and deletes for the DM logger.
+dmEvents.register(client);
 
 /* ---------------- OTJOIN MODE ---------------- */
 

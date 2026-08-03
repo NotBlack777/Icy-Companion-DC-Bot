@@ -47,7 +47,11 @@ function defaults() {
     // DM logger
     dmLogger: {
       enabled: true,
-      mode: 'dm', // 'dm' | 'server'
+      // 'server' = log into a chosen guild + category (default),
+      // 'dm'     = forward to the Super Owner's DMs instead.
+      // Defaults to 'server' with no target, so nothing is logged
+      // anywhere until the Super Owner explicitly configures it.
+      mode: 'server',
       targetGuild: null,
       targetCategory: null,
       blacklist: [],

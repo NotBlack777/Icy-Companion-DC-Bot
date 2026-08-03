@@ -20,6 +20,7 @@ const {
 
 const registry = require('./registry');
 const executor = require('./executor');
+const loadDmCommands = require('./loadCommands');
 const { safeDefer, safeEdit } = require('../utils/interactionResponder');
 
 /**
@@ -150,8 +151,12 @@ function buildSlashCommand(command) {
 
 /**
  * Every registry command as a slash-ready module.
+ *
+ * Loads the registry first, so this works even when slash.js is
+ * required before src/dm/index.js.
  */
 function buildAll() {
+  loadDmCommands();
   return registry.all().map(buildSlashCommand);
 }
 

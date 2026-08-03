@@ -7,6 +7,7 @@
 
 const { EmbedBuilder } = require('discord.js');
 const registry = require('./registry');
+const loadDmCommands = require('./loadCommands');
 const ui = require('./ui');
 const store = require('../utils/globalStore');
 
@@ -14,6 +15,8 @@ const store = require('../utils/globalStore');
  * Only show a group if the viewer can run at least one command in it.
  */
 function visibleGroups(userId) {
+  loadDmCommands();
+
   return registry.GROUPS
     .map(group => ({
       ...group,

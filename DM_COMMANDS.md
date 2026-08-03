@@ -117,21 +117,60 @@ post in, and paces sends to stay under rate limits.
 
 ### 📨 DM Logger
 ```
+@bot dm mode server <#N/serverid> <cat id>
+@bot dm mode dm
+@bot dm logger on
+@bot dm logger off
+@bot dm status
 @bot dm blacklist add <id>
 @bot dm blacklist remove <id>
 @bot dm blacklist list
-@bot dm mode dm
-@bot dm mode server <id> [cat id]
-@bot dm status
 ```
 
-When a normal user DMs the bot, the message is relayed to you.
+Logs everything a user does in the bot's DMs into a channel named after
+them — messages, replies, edits, deletes and reactions.
 
-- **`dm mode dm`** — forwarded into your DMs.
-- **`dm mode server <id> [cat id]`** — a channel is created per user
-  inside that server/category. Anything you type in a relay channel is
-  **sent back to the user**; prefix with `//` to leave an internal note
-  instead. ✅ / ❌ reactions confirm delivery.
+#### Strict server + category scoping
+
+`dm mode server` requires **both** a server and a category, and log
+channels are **only ever created inside that category**:
+
+```
+@bot servers                          → find your server's #N
+@bot dm mode server #1 555000111222   → set server + category
+@bot dm status                        → confirm it is healthy
+```
+
+If the target server, category or permissions become invalid, the logger
+**stops and writes nothing** rather than falling back to somewhere else.
+You get one DM alert (rate-limited to once per 10 minutes) explaining
+why, and `@bot dm status` shows the exact reason.
+
+Out of the box nothing is configured, so **no DMs are logged anywhere**
+until you run `dm mode server`.
+
+#### What gets logged
+
+| Event | Embed |
+| --- | --- |
+| New DM | 📩 New DM Received — user, time, type, message |
+| Reply | ↩️ Reply to a message + a quote of what was replied to |
+| Reaction | 😀 DM Reaction — who, emoji, time, reacted-on message |
+| Reaction removed | 🚫 DM Reaction Removed |
+| Edit | ✏️ DM Edited — before and after |
+| Delete | 🗑️ DM Deleted (cached messages only) |
+
+Each channel opens with a pinned **📋 DM Log Channel** message, and every
+embed footers with `User ID: … • Message ID: …`.
+
+#### Replying
+
+Anything you type in a log channel is **sent back to the user** as a
+staff reply. Prefix with `//` for an internal note that is not sent.
+✅ / ❌ reactions confirm delivery.
+
+- **`dm mode dm`** — forward to your DMs instead of a category.
+- **`dm logger off`** — pause logging entirely.
 
 Owners are exempt — your own DMs are treated as commands, not modmail.
 
@@ -203,3 +242,48 @@ not allow spaces in command names:
 
 The last few are prefixed because a guild command with that name already
 exists. All slash replies are **ephemeral** (only you see them).
+
+---
+
+## Server commands added alongside the DM system
+
+These are normal in-server slash commands, shown in `/help`.
+
+### 📋 Attendance
+| Command | Description |
+| --- | --- |
+| `/top-staff [limit]` | Attendance streak leaderboard, ✅ marks who logged today |
+| `/set-staff-role [role]` | Set the staff role (empty clears it) |
+| `/set-attendance-channel [channel]` | Set the attendance channel (empty clears it) |
+
+### ⚙️ Settings
+| Command | Description |
+| --- | --- |
+| `/setprefix <prefix>` | Change the text prefix (shown in the `/help` footer) |
+| `/ignore-role <role>` | Toggle a role being ignored |
+| `/ignore-user <user>` | Toggle a user being ignored |
+| `/ignore-channel [channel]` | Toggle a channel being ignored (defaults to here) |
+| `/ignore-list` | View everything currently ignored |
+
+The three `ignore-*` commands **toggle** — running one twice un-ignores.
+Owners cannot be ignored, so nobody can lock themselves out.
+
+### 🎲 Fun
+| Command | Description |
+| --- | --- |
+| `/poll <question> [options]` | Reaction poll. Comma-separated options (2-10), or yes/no when omitted |
+
+### Renamed commands (old names still work)
+
+`/help` now lists hyphenated names. The originals are kept as aliases
+running the same code, so nothing breaks:
+
+| Shown in help | Also works |
+| --- | --- |
+| `/server-info` | `/serverinfo` |
+| `/bot-info` | `/botinfo` |
+| `/user-info` | `/userinfo` |
+| `/member-count` | `/membercount` |
+| `/owner` | `/owner-list` |
+| `/add-extra-owner` | `/add-owner` |
+| `/remove-extra-owner` | `/remove-owner` |
