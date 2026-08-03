@@ -1,115 +1,351 @@
 /**
- * The @bot help / /dm-help Super Owner command panel.
- * Fully redesigned with icy futuristic aesthetic.
+ * The @bot help / /dm-help command panel.
+ *
+ * This uses the same calm, paged layout as the server help menu: a small
+ * overview page, one category per page, and compact controls underneath.
+ * Keeping one category on screen at a time makes the panel much easier to
+ * read on a phone than one giant embed full of code blocks and box drawing.
  */
 
-const { EmbedBuilder } = require('discord.js');
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  StringSelectMenuBuilder
+} = require('discord.js');
 const registry = require('./registry');
 const loadDmCommands = require('./loadCommands');
 const ui = require('./ui');
 const store = require('../utils/globalStore');
 
-// ─── Visible groups for a user ───────────────────────────────────
+const { ICY } = ui;
+
+const HOME_ID = 'home';
+const DM_HELP_PREFIX = 'dm_help_';
+
+// Keep the DM panel's controls separate from the server help controls. This
+// lets both menus live in the same DM/server interaction handler safely.
+const DM_HELP_IDS = {
+  first: `${DM_HELP_PREFIX}first`,
+  previous: `${DM_HELP_PREFIX}previous`,
+  home: `${DM_HELP_PREFIX}home`,
+  next: `${DM_HELP_PREFIX}next`,
+  last: `${DM_HELP_PREFIX}last`,
+  select: `${DM_HELP_PREFIX}select`
+};
+
+const GROUP_COLORS = {
+  info:       ICY.frost,
+  delete:     ICY.lava,
+  broadcast:  ICY.mint,
+  management: ICY.violet,
+  reports:    ICY.amber,
+  staff:      ICY.amber,
+  dmlogger:   ICY.neon,
+  privacy:    ICY.brand,
+  security:   ICY.error,
+  moderation: ICY.pink
+};
+
+// Unicode emoji only for now. Custom emoji can be added later without
+// changing the layout or component IDs.
+const FALLBACK_GROUP_EMOJIS = {
+  info: '📋',
+  delete: '🗑️',
+  broadcast: '📢',
+  management: '⚙️',
+  reports: '📊',
+  staff: '⭐',
+  dmlogger: '📨',
+  privacy: '🔒',
+  security: '🛡️',
+  moderation: '⚠️'
+};
+
+const LOCKED_BADGE = '🔒';
+const READY_BADGE = '🔓';
+
+// ─── Visible groups for a user ─────────────────────────────────────
 function visibleGroups(userId) {
   loadDmCommands();
+
   return registry.GROUPS
     .map(group => ({
       ...group,
-      commands: registry.byGroup(group.id).filter(cmd => store.hasTier(userId, cmd.tier))
+      emoji: group.emoji || FALLBACK_GROUP_EMOJIS[group.id] || '📁',
+      commands: registry
+        .byGroup(group.id)
+        .filter(command => store.hasTier(userId, command.tier))
     }))
     .filter(group => group.commands.length);
 }
 
-// ─── Group emoji map ───────────────────────────────────────────────
-const GROUP_COLORS = {
-  info:      0x00d4ff,   // frost
-  delete:    0xff4d6d,   // lava red
-  broadcast: 0x00f5a0,   // mint
-  management:0x9b5de5,   // violet
-  reports:   0xffd60a,   // amber
-  dmlogger:  0x7df9ff,   // neon
-  privacy:   0x00c8ff,   // brand blue
-  security:  0xff3d71,   // neon red
-  moderation:0xf72585,   // pink
-};
+/**
+ * Build the pages available to this user. The home page is always first;
+ * the remaining pages are derived from the command registry so a new DM
+ * command automatically appears in the menu.
+ */
+function helpCategories(userId) {
+  const groups = visibleGroups(userId);
 
-const LOCKED_BADGE  = '🔒';
-const UNLOCKED_BADGE = '🔓';
-
-function buildDmHelp(ctx) {
-  const userId    = ctx.user.id;
-  const groups    = visibleGroups(userId);
-  const totalCmds = groups.reduce((sum, g) => sum + g.commands.length, 0);
-
-  const tier = store.isSuperOwner(userId)
-    ? 'SUPER OWNER'
-    : store.isGlobalOwner(userId)
-      ? 'GLOBAL OWNER'
-      : 'JUNIOR OWNER';
-
-  const locked = store.isLocked() && !store.isSessionUnlocked(userId);
-  const badge  = locked ? LOCKED_BADGE : UNLOCKED_BADGE;
-
-  // Title block
-  const titleBlock = [
-    '```',
-    '  ╔═══════════════════════════════════════════════╗',
-    `  ║       ❄  ${tier.padEnd(19)} ${badge}  ║`,
-    '  ║       Icy Companion — Command Panel           ║',
-    '  ╚═══════════════════════════════════════════════╝',
-    '```',
-  ].join('\n');
-
-  // Lock warning
-  const lockLine = locked
-    ? '\n> ⚠️ **Bot is LOCKED.** Run `@bot unlock <password>` to access secured commands.'
-    : '';
-
-  const descLines = [
-    titleBlock,
-    '',
-    '> **🔹 Tip:** Use `#N` for config number (e.g. `#1`) or a full server ID.',
-    '> **🔹 Tip:** Every command works as a slash command too.',
-    lockLine,
+  return [
+    {
+      id: HOME_ID,
+      label: 'Home',
+      emoji: '🏠',
+      color: ICY.frost,
+      description: 'A quick overview of your DM command hub',
+      commands: []
+    },
+    ...groups.map(group => ({
+      id: group.id,
+      label: group.label,
+      emoji: group.emoji,
+      color: GROUP_COLORS[group.id] || ICY.frost,
+      description: groupDescription(group),
+      commands: group.commands
+    }))
   ];
+}
 
-  // Build fields per group
-  const color = locked ? 0xff4d6d : 0x00d4ff;
+function groupDescription(group) {
+  const descriptions = {
+    info: 'Servers, status, configuration and quick lookups.',
+    delete: 'Remove messages cleanly from servers or DMs.',
+    broadcast: 'Send announcements and messages from one place.',
+    management: 'Manage servers, owners and attendance settings.',
+    reports: 'Attendance reminders and useful reports.',
+    staff: 'Add, remove and review staff across your servers.',
+    dmlogger: 'Control where incoming DMs are logged.',
+    privacy: 'Keep the bot quiet, private or ready to restart.',
+    security: 'Passwords, owners, sessions and two-factor security.',
+    moderation: 'Roles, timeouts, warnings and voice tools.'
+  };
 
+  return descriptions[group.id] || `${group.label} commands for your bot.`;
+}
+
+function totalCommands(categories) {
+  return categories
+    .filter(category => category.id !== HOME_ID)
+    .reduce((total, category) => total + category.commands.length, 0);
+}
+
+function tierLabel(userId) {
+  if (store.isSuperOwner(userId)) return 'Super Owner';
+  if (store.isGlobalOwner(userId)) return 'Global Owner';
+  return 'Junior Owner';
+}
+
+function avatarUrl(ctx) {
+  return ctx.client?.user?.displayAvatarURL?.() || undefined;
+}
+
+function clampPage(page, categories) {
+  const lastPage = Math.max(0, categories.length - 1);
+  const numeric = Number(page);
+
+  if (!Number.isInteger(numeric)) return 0;
+  return Math.min(Math.max(numeric, 0), lastPage);
+}
+
+// ─── Mobile-friendly command rows ──────────────────────────────────
+/**
+ * Split the command name from its arguments. A separate argument segment
+ * wraps much more naturally on narrow screens than a long code block.
+ */
+function usageParts(command) {
+  const usage = String(command.usage || `@bot ${command.name}`);
+  const commandText = `@bot ${command.name}`;
+
+  if (usage.toLowerCase().startsWith(commandText.toLowerCase())) {
+    return {
+      command: commandText,
+      args: usage.slice(commandText.length).trim()
+    };
+  }
+
+  return { command: usage, args: '' };
+}
+
+function commandBadge(command, locked) {
+  if (command.secure) return locked ? LOCKED_BADGE : '🛡️';
+  if (command.tier === 'owner') return '⭐';
+  if (command.tier === 'junior') return '🔹';
+  return '✨';
+}
+
+function commandRow(command, locked) {
+  const { command: name, args } = usageParts(command);
+  const suffix = args ? ` ${args}` : '';
+  return `${commandBadge(command, locked)} **${name}**${suffix}\n> ${command.desc}`;
+}
+
+// ─── Embed pages ───────────────────────────────────────────────────
+function embedBase(ctx, color) {
   const embed = new EmbedBuilder()
     .setColor(color)
     .setAuthor({
-      name: '✦  I C Y   C O M P A N I O N  •  DM PANEL',
-      iconURL: ctx.client.user?.displayAvatarURL?.() || undefined,
-    })
-    .setTitle(`${badge}  ${tier} DM Commands`)
-    .setDescription(descLines.join('\n'))
-    .setFooter({ text: `✦ ${totalCmds} commands  •  Icy Companion` })
-    .setTimestamp();
-
-  if (ctx.client.user?.displayAvatarURL?.()) {
-    embed.setThumbnail(ctx.client.user.displayAvatarURL());
-  }
-
-  for (const group of groups) {
-    const gColor = GROUP_COLORS[group.id] || 0x00d4ff;
-
-    const body = group.commands
-      .map(cmd => {
-        const lock  = cmd.secure && locked  ? ' 🔒' : '';
-        const admin = cmd.tier === 'owner' ? ' ⭐' : (cmd.tier === 'super' ? ' 👑' : '');
-        return `  ${cmd.usage}${admin}${lock}`;
-      })
-      .join('\n');
-
-    embed.addFields({
-      name:  `${group.emoji}  ${group.label}`,
-      value: `\`\`\`\n${body}\n\`\`\``,
-      inline: false,
+      name: 'ICY COMPANION',
+      iconURL: avatarUrl(ctx)
     });
-  }
 
-  return { embeds: [embed] };
+  const avatar = avatarUrl(ctx);
+  if (avatar) embed.setThumbnail(avatar);
+
+  return embed;
 }
 
-module.exports = { buildDmHelp, visibleGroups };
+function buildHomePage(ctx, categories, page) {
+  const locked = store.isLocked() && !store.isSessionUnlocked(ctx.user.id);
+  const groups = categories.slice(1);
+  const total = totalCommands(categories);
+  const badge = locked ? LOCKED_BADGE : READY_BADGE;
+  const status = locked ? 'Locked actions need an unlock first.' : 'Your command hub is ready.';
+
+  const categoryLines = groups.length
+    ? groups.map(group =>
+      `${group.emoji} **${group.label}** — ${group.commands.length} command${group.commands.length === 1 ? '' : 's'}`
+    )
+    : ['💤 No commands are available for this account yet.'];
+
+  return embedBase(ctx, locked ? ICY.lava : ICY.frost)
+    .setDescription([
+      '### ❄️ DM Command Hub',
+      '> A calm little control room for your servers.',
+      '',
+      `${badge} **${tierLabel(ctx.user.id)}**`,
+      `> ${locked ? '🔒' : '✅'} ${status}`,
+      '',
+      '📊 **At a glance**',
+      `> 🧊 **${total}** command${total === 1 ? '' : 's'}  •  🗂️ **${groups.length}** section${groups.length === 1 ? '' : 's'}`,
+      '',
+      '🧭 **Pick a section below**',
+      ...categoryLines,
+      '',
+      '💡 **Quick tips**',
+      '> Use `#1` for a server config number, or paste the full server ID.',
+      '> Every DM command is also available as a slash command.',
+      locked ? '> Unlock with `@bot unlock <password>` or a TOTP code.' : '> Keep it chill — choose a section and tap around.'
+    ].join('\n'))
+    .setFooter({ text: `Page ${page + 1}/${categories.length} • ${total} commands • DM control room` });
+}
+
+function buildCategoryPage(ctx, category, categories, page) {
+  const locked = store.isLocked() && !store.isSessionUnlocked(ctx.user.id);
+  const rows = category.commands.map(command => commandRow(command, locked));
+
+  return embedBase(ctx, category.color || ICY.frost)
+    .setDescription([
+      `### ${category.emoji} ${category.label}`,
+      `> ${category.description}`,
+      '',
+      `**${category.commands.length} command${category.commands.length === 1 ? '' : 's'}**  ${locked ? '• 🔒 Secured actions are locked' : '• 🌊 Ready when you are'}`,
+      '',
+      rows.length ? rows.join('\n\n') : '💤 Nothing is available in this section yet.',
+      '',
+      '💬 Use the exact format shown above. Tap 🏠 for the overview.'
+    ].join('\n'))
+    .setFooter({
+      text: `Page ${page + 1}/${categories.length} • ${category.commands.length} commands • Choose another section below`
+    });
+}
+
+function buildDmHelpEmbed(ctx, page = 0, categories = helpCategories(ctx.user.id)) {
+  const currentPage = clampPage(page, categories);
+  const category = categories[currentPage];
+
+  if (category.id === HOME_ID) {
+    return buildHomePage(ctx, categories, currentPage);
+  }
+
+  return buildCategoryPage(ctx, category, categories, currentPage);
+}
+
+// ─── Mobile-friendly controls ──────────────────────────────────────
+function buildDmHelpComponents(page, categories) {
+  const currentPage = clampPage(page, categories);
+  const lastPage = categories.length - 1;
+
+  const navigationRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(DM_HELP_IDS.first)
+      .setEmoji('⏮️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage === 0),
+    new ButtonBuilder()
+      .setCustomId(DM_HELP_IDS.previous)
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(currentPage === 0),
+    new ButtonBuilder()
+      .setCustomId(DM_HELP_IDS.home)
+      .setEmoji('🏠')
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(currentPage === 0),
+    new ButtonBuilder()
+      .setCustomId(DM_HELP_IDS.next)
+      .setEmoji('▶️')
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(currentPage === lastPage),
+    new ButtonBuilder()
+      .setCustomId(DM_HELP_IDS.last)
+      .setEmoji('⏭️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage === lastPage)
+  );
+
+  const selectMenuRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(DM_HELP_IDS.select)
+      .setPlaceholder(`🧭 ${categories[currentPage].label} • Choose a section`)
+      .addOptions(
+        categories.map((category, index) => ({
+          label: category.label,
+          value: String(index),
+          emoji: category.emoji,
+          description: category.description.slice(0, 100),
+          default: index === currentPage
+        }))
+      )
+  );
+
+  return [navigationRow, selectMenuRow];
+}
+
+/**
+ * Build the message payload used by both the mention command and /dm-help.
+ */
+function buildDmHelp(ctx, page = 0) {
+  const categories = helpCategories(ctx.user.id);
+  const currentPage = clampPage(page, categories);
+
+  return {
+    embeds: [buildDmHelpEmbed(ctx, currentPage, categories)],
+    components: buildDmHelpComponents(currentPage, categories)
+  };
+}
+
+function pageFromMessage(interaction) {
+  const footer = interaction.message?.embeds?.[0]?.footer?.text || '';
+  const match = footer.match(/Page\s+(\d+)\s*\//i);
+  return match ? Number(match[1]) - 1 : 0;
+}
+
+module.exports = {
+  HOME_ID,
+  DM_HELP_PREFIX,
+  DM_HELP_IDS,
+  GROUP_COLORS,
+  visibleGroups,
+  helpCategories,
+  totalCommands,
+  clampPage,
+  usageParts,
+  commandRow,
+  buildDmHelpEmbed,
+  buildDmHelpComponents,
+  buildDmHelp,
+  pageFromMessage
+};

@@ -30,6 +30,11 @@ Then DM the bot:
 @Icy Companion help
 ```
 
+The help panel opens on a compact home page. Use the emoji buttons or the
+category picker to move between sections; commands are shown one category at
+a time so the panel stays readable on mobile. Custom emoji can be added later
+with `/store-emoji` — the panel currently uses Unicode emoji everywhere.
+
 ---
 
 ## Targeting servers: `#N` vs server ID
