@@ -147,7 +147,12 @@ const HELP_CATEGORIES = [
       { name: '/bot-info',     desc: 'View bot information' },
       { name: '/user-info',    desc: 'View user information' },
       { name: '/member-count', desc: 'View member statistics' },
-      { name: '/avatar',       desc: 'View a user avatar' },
+      { name: '/avatar',         desc: 'View a user avatar or PFP' },
+      { name: '/pfp',             desc: 'View a user profile picture' },
+      { name: '/banner',          desc: 'View a user profile banner' },
+      { name: '/gif-banner',      desc: 'Get an animated banner when available' },
+      { name: '/profile-assets',  desc: 'View a user PFP, banner and download links' },
+      { name: '/import-emojis',    desc: 'Import custom UI emojis from this server (Owner)' },
       { name: '/help',         desc: 'Open this help menu' },
       { name: '/reload',       desc: 'Reload command files' },
       { name: '/store-emoji',  desc: 'Store custom emojis (Owner)' }

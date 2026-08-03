@@ -13,6 +13,7 @@ const {
   HELP_CATEGORIES,
   clampPage
 } = require('../ui/help/HelpSystem');
+const dmHelp = require('../dm/help');
 
 function getCurrentHelpPage(interaction) {
   const footer = interaction.message?.embeds?.[0]?.footer?.text;
@@ -44,6 +45,32 @@ function renderHelpPage(interaction, client, page) {
   );
 }
 
+/**
+ * Render the owner DM help panel. It is intentionally separate from the
+ * server help renderer because DM pages are filtered by the clicker's owner
+ * tier and have their own component IDs.
+ */
+function renderDmHelpPage(interaction, client, page) {
+  const ctx = {
+    client,
+    user: interaction.user,
+    channel: interaction.channel,
+    guild: interaction.guild,
+    interaction,
+    message: null,
+    source: 'component'
+  };
+
+  return safeUpdate(
+    interaction,
+    () => dmHelp.buildDmHelp(ctx, page),
+    {
+      thinking: () => dmHelp.buildDmHelp(ctx, page),
+      errorMessage: 'Could not open that DM help page. Try `/dm-help` again.'
+    }
+  );
+}
+
 module.exports = {
   name: Events.InteractionCreate,
 
@@ -54,6 +81,32 @@ module.exports = {
       /* ---------------- BUTTONS ---------------- */
 
       if (interaction.isButton()) {
+        /* ---------- OWNER DM HELP ---------- */
+        if (interaction.customId.startsWith(dmHelp.DM_HELP_PREFIX)) {
+          let page = dmHelp.pageFromMessage(interaction);
+
+          switch (interaction.customId) {
+            case dmHelp.DM_HELP_IDS.first:
+            case dmHelp.DM_HELP_IDS.home:
+              page = 0;
+              break;
+            case dmHelp.DM_HELP_IDS.previous:
+              page -= 1;
+              break;
+            case dmHelp.DM_HELP_IDS.next:
+              page += 1;
+              break;
+            case dmHelp.DM_HELP_IDS.last:
+              page = dmHelp.helpCategories(interaction.user.id).length - 1;
+              break;
+            default:
+              return;
+          }
+
+          return renderDmHelpPage(interaction, activeClient, page);
+        }
+
+        /* ---------- SERVER HELP ---------- */
         if (!interaction.customId.startsWith('help_')) return;
 
         let page = getCurrentHelpPage(interaction);
@@ -82,7 +135,14 @@ module.exports = {
       /* ---------------- SELECT MENUS ---------------- */
 
       if (interaction.isStringSelectMenu()) {
-        // Current help menu.
+        // Owner DM help menu.
+        if (interaction.customId === dmHelp.DM_HELP_IDS.select) {
+          const categories = dmHelp.helpCategories(interaction.user.id);
+          const page = dmHelp.clampPage(Number(interaction.values[0]), categories);
+          return renderDmHelpPage(interaction, activeClient, page);
+        }
+
+        // Current server help menu.
         if (interaction.customId === 'help_select') {
           const page = clampPage(Number(interaction.values[0]));
           return renderHelpPage(interaction, activeClient, page);
