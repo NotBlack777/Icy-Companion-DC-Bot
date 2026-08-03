@@ -20,6 +20,8 @@ const responses = [
 ];
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('8ball')
     .setDescription('Ask the magic 8-ball a question')
@@ -28,6 +30,7 @@ module.exports = {
         .setName('question')
         .setDescription('Your question')
         .setRequired(true)
+        .setMaxLength(1024)
     ),
 
   async execute(interaction) {

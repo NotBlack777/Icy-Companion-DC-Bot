@@ -1,78 +1,70 @@
 const {
   SlashCommandBuilder,
-  EmbedBuilder,
+  EmbedBuilder
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('membercount')
-    .setDescription(
-      'View server member statistics'
-    ),
+    .setDescription('View server member statistics'),
 
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: '❌ This command can only be used in a server.',
+        ephemeral: true
+      });
+    }
+
     const guild = interaction.guild;
 
-    await guild.members.fetch();
+    try {
+      await guild.members.fetch();
+    } catch (err) {
+      // The bot may not have the GuildMembers intent. Cached members still provide useful stats.
+      console.warn(`[MEMBERCOUNT] Could not fetch all members in ${guild.id}: ${err.message}`);
+    }
 
-    const total =
-      guild.memberCount;
-
-    const bots =
-      guild.members.cache.filter(
-        member => member.user.bot
-      ).size;
-
-    const humans =
-      total - bots;
-
-    const online =
-      guild.members.cache.filter(
-        member =>
-          member.presence &&
-          member.presence.status !==
-            'offline'
-      ).size;
+    const total = guild.memberCount ?? guild.members.cache.size;
+    const bots = guild.members.cache.filter(member => member.user.bot).size;
+    const humans = Math.max(0, total - bots);
+    const online = guild.members.cache.filter(member => member.presence && member.presence.status !== 'offline').size;
 
     const embed = new EmbedBuilder()
-      .setColor(0x7DD3FC)
+      .setColor(0x7dd3fc)
       .setTitle('👥 Member Count')
-      .setThumbnail(
-        guild.iconURL({
-          dynamic: true,
-          size: 4096,
-        })
-      )
       .addFields(
         {
           name: '👥 Total Members',
           value: `\`${total}\``,
-          inline: true,
+          inline: true
         },
         {
           name: '🧑 Humans',
           value: `\`${humans}\``,
-          inline: true,
+          inline: true
         },
         {
-          name: '🤖 Bots',
+          name: '🤖 Bots (cached)',
           value: `\`${bots}\``,
-          inline: true,
+          inline: true
         },
         {
-          name: '🟢 Online',
+          name: '🟢 Online (cached)',
           value: `\`${online}\``,
-          inline: true,
-        },
+          inline: true
+        }
       )
       .setFooter({
-        text:
-          `Requested by ${interaction.user.tag}`,
+        text: `Requested by ${interaction.user.tag}`
       })
       .setTimestamp();
 
-    await interaction.reply({
-      embeds: [embed],
-    });
-  },
+    const icon = guild.iconURL({ size: 4096 });
+    if (icon) embed.setThumbnail(icon);
+
+    return interaction.reply({ embeds: [embed] });
+  }
 };

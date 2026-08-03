@@ -4,11 +4,15 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('ping')
     .setDescription('Check bot latency'),
 
-  async execute(interaction, client) {
+  async execute(interaction, clientArg) {
+
+    const client = clientArg || interaction.client;
 
     await interaction.reply({
       content: '⏳ Measuring...'

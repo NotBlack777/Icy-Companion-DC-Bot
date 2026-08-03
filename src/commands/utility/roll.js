@@ -4,6 +4,8 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('roll')
     .setDescription('Roll a number')
@@ -13,6 +15,7 @@ module.exports = {
         .setDescription('Maximum number')
         .setRequired(false)
         .setMinValue(1)
+        .setMaxValue(1000000)
     ),
 
   async execute(interaction) {

@@ -4,6 +4,8 @@ const {
 } = require('discord.js');
 
 module.exports = {
+  category: 'utility',
+
   data: new SlashCommandBuilder()
     .setName('choose')
     .setDescription(
@@ -16,6 +18,7 @@ module.exports = {
           'Separate choices with commas'
         )
         .setRequired(true)
+        .setMaxLength(1000)
     ),
 
   async execute(interaction) {
@@ -50,7 +53,8 @@ module.exports = {
           (choice, index) =>
             `${index + 1}. ${choice}`
         )
-        .join('\n');
+        .join('\n')
+        .slice(0, 1024);
 
     const embed = new EmbedBuilder()
       .setColor(0x7DD3FC)

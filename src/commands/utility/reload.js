@@ -1,66 +1,52 @@
 const {
   SlashCommandBuilder,
-  EmbedBuilder
+  EmbedBuilder,
+  PermissionFlagsBits
 } = require('discord.js');
 
-const {
-  loadCommands
-} = require('../../handlers/loadCommands');
-
-const emojis = {
-  success: '✅',
-  settings: '⚙️',
-  search: '🔍',
-  rocket: '🚀',
-  premium: '👑',
-  loading: '⏳',
-  home: '🏠',
-  file: '📁',
-  error: '❌',
-  commands: '📜'
-};
+const loadCommands = require('../../handlers/loadCommands');
 
 module.exports = {
+  category: 'utility',
 
   data: new SlashCommandBuilder()
     .setName('reload')
-    .setDescription('Reload all commands'),
+    .setDescription('Reload all command files')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, client) {
-
     try {
-
       await interaction.reply({
-        content:
-          `${emojis.loading} Reloading commands...`
+        content: '⏳ Reloading commands...',
+        ephemeral: true
       });
 
-      loadCommands(client);
+      const result = loadCommands(client || interaction.client);
 
       const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle(
-          `${emojis.success} Reload Complete`
-        )
-        .setDescription(
-          `${emojis.commands} Loaded ${client.commands.size} commands`
-        )
+        .setColor(result.failed > 0 ? 0xffcc00 : 0x57f287)
+        .setTitle('✅ Reload Complete')
+        .setDescription(`📜 Loaded ${result.loaded} command(s).\n${result.failed ? `⚠️ Failed ${result.failed} command(s).` : 'No failures.'}`)
         .setTimestamp();
 
-      await interaction.editReply({
+      return interaction.editReply({
         content: null,
         embeds: [embed]
       });
-
     } catch (err) {
+      console.error('[RELOAD ERROR]', err);
 
-      console.log(err);
+      if (interaction.deferred || interaction.replied) {
+        return interaction.editReply({
+          content: '❌ Failed to reload commands.',
+          embeds: []
+        }).catch(() => null);
+      }
 
-      await interaction.editReply({
-        content:
-          `${emojis.error} Failed to reload commands`
-      });
-
+      return interaction.reply({
+        content: '❌ Failed to reload commands.',
+        ephemeral: true
+      }).catch(() => null);
     }
   }
 };

@@ -1,17 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join(
-  __dirname,
-  '../../server_configs/attendance-streak.json'
-);
+const configDir = path.join(__dirname, '../../server_configs');
+const filePath = path.join(configDir, 'attendance-streak.json');
 
 function ensureFile() {
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(
-      filePath,
-      JSON.stringify({}, null, 2)
-    );
+    fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
   }
 }
 
@@ -19,120 +18,125 @@ function load() {
   ensureFile();
 
   try {
-    return JSON.parse(
-      fs.readFileSync(filePath, 'utf8')
-    );
-  } catch {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  } catch (err) {
+    console.warn(`[STREAK] Failed to read streak data: ${err.message}`);
     return {};
   }
 }
 
 function save(data) {
   ensureFile();
-
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify(data, null, 2)
-  );
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
 function key(guildId, userId) {
   return `${guildId}-${userId}`;
 }
 
-function today() {
-  return new Date().toDateString();
+function toDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-// UPDATE STREAK
-function updateStreak(guildId, userId) {
+function parseDateKey(value) {
+  if (!value) return null;
 
-  const data = load();
-
-  const k = key(guildId, userId);
-  const t = today();
-
-  if (!data[k]) {
-
-    data[k] = {
-      streak: 1,
-      lastDay: t
-    };
-
-  } else {
-
-    const last = new Date(
-      data[k].lastDay
-    );
-
-    const now = new Date(t);
-
-    const diff = Math.floor(
-      (now - last) / 86400000
-    );
-
-    if (diff === 1) {
-      data[k].streak += 1;
-    } else if (diff > 1) {
-      data[k].streak = 1;
-    }
-
-    data[k].lastDay = t;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
   }
 
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return toDateKey(parsed);
+}
+
+function dayNumber(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
+
+function updateStreak(guildId, userId) {
+  const data = load();
+  const streakKey = key(guildId, userId);
+  const today = toDateKey();
+  const current = data[streakKey];
+
+  if (!current || typeof current !== 'object') {
+    data[streakKey] = {
+      streak: 1,
+      lastDay: today
+    };
+    save(data);
+    return 1;
+  }
+
+  const lastDay = parseDateKey(current.lastDay);
+  const currentStreak = Number(current.streak) || 0;
+
+  if (!lastDay) {
+    current.streak = Math.max(1, currentStreak);
+  } else {
+    const diff = dayNumber(today) - dayNumber(lastDay);
+
+    if (diff === 1) {
+      current.streak = currentStreak + 1;
+    } else if (diff > 1 || diff < 0) {
+      current.streak = 1;
+    } else {
+      current.streak = Math.max(1, currentStreak);
+    }
+  }
+
+  current.lastDay = today;
+  data[streakKey] = current;
   save(data);
 
-  return data[k].streak;
+  return current.streak;
 }
 
-// GET STREAK
 function getStreak(guildId, userId) {
-
   const data = load();
-
-  return (
-    data[key(guildId, userId)]
-      ?.streak || 0
-  );
+  return Number(data[key(guildId, userId)]?.streak) || 0;
 }
 
-// SET STREAK
-function setStreak(
-  guildId,
-  userId,
-  amount
-) {
-
+function setStreak(guildId, userId, amount) {
   const data = load();
+  const numericAmount = Math.max(0, Number(amount) || 0);
 
   data[key(guildId, userId)] = {
-    streak: Number(amount),
-    lastDay: today()
+    streak: numericAmount,
+    lastDay: toDateKey()
   };
 
   save(data);
-
-  return amount;
+  return numericAmount;
 }
 
-// ADD STREAK
-function addStreak(
-  guildId,
-  userId,
-  amount
-) {
-
-  const current =
-    getStreak(guildId, userId);
-
-  return setStreak(
-    guildId,
-    userId,
-    current + Number(amount)
-  );
+function addStreak(guildId, userId, amount) {
+  return setStreak(guildId, userId, getStreak(guildId, userId) + (Number(amount) || 0));
 }
 
-// GET ALL STREAKS
+function clearGuildStreaks(guildId) {
+  const data = load();
+  const prefix = `${guildId}-`;
+  let removed = 0;
+
+  for (const streakKey of Object.keys(data)) {
+    if (streakKey.startsWith(prefix)) {
+      delete data[streakKey];
+      removed++;
+    }
+  }
+
+  save(data);
+  return removed;
+}
+
 function getAllStreaks() {
   return load();
 }
@@ -142,5 +146,10 @@ module.exports = {
   getStreak,
   setStreak,
   addStreak,
-  getAllStreaks
+  clearGuildStreaks,
+  getAllStreaks,
+
+  // Exported for tests and future commands.
+  toDateKey,
+  parseDateKey
 };

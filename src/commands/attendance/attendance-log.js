@@ -1,32 +1,43 @@
-const { SlashCommandBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getServerConfig } = require('../../utils/configManager');
 
 module.exports = {
   category: 'attendance',
 
   data: new SlashCommandBuilder()
     .setName('attendance-log')
-    .setDescription('View attendance logs'),
+    .setDescription('View the latest attendance logs'),
 
   async execute(interaction) {
-
-    const file = path.join(__dirname, '../../../server-config', `${interaction.guild.id}.json`);
-
-    if (!fs.existsSync(file)) {
-      return interaction.reply({ content: '❌ No config found', ephemeral: true });
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: '❌ This command can only be used in a server.',
+        ephemeral: true
+      });
     }
 
-    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
-
-    const logs = config.attendance || {};
+    const config = getServerConfig(interaction.guild.id);
+    const logs = config.attendance?.users || {};
 
     const entries = Object.entries(logs)
-      .slice(0, 10)
-      .map(([k, v]) => `👤 ${k.split('-')[1]} → ${v}`);
+      .slice(-10)
+      .reverse()
+      .map(([userId, markedAt], index) => `${index + 1}. <@${userId}> → ${markedAt}`);
 
-    return interaction.reply({
-      content: entries.length ? entries.join('\n') : 'No logs found'
-    });
+    if (!entries.length) {
+      return interaction.reply({
+        content: '📋 No attendance logs found yet.',
+        ephemeral: true
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('📋 Latest Attendance Logs')
+      .setDescription(entries.join('\n'))
+      .setFooter({ text: `Showing ${entries.length} latest entr${entries.length === 1 ? 'y' : 'ies'}` })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
   }
 };
