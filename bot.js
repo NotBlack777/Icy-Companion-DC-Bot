@@ -6,19 +6,24 @@ const {
   Partials,
   Collection,
   REST,
-  Routes
+  Routes,
+  ActivityType
 } = require('discord.js');
 
-const fs = require('fs');
-const path = require('path');
+const loadCommands = require('./src/handlers/loadCommands');
+const interactionCreate = require('./src/handlers/interactionCreate');
+const messageCreate = require('./src/handlers/messageCreate');
+
+const dm = require('./src/dm');
+const dmSlash = require('./src/dm/slash');
+const store = require('./src/utils/globalStore');
+const { syncConfigNumbers, getConfigNumber } = require('./src/utils/serverResolver');
+const ui = require('./src/dm/ui');
 
 /* ---------------- ENV ---------------- */
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const PREFIX = '.';
-
-/* ---------------- CHECK ---------------- */
 
 if (!TOKEN) {
   console.log('❌ TOKEN missing');
@@ -35,226 +40,172 @@ const client = new Client({
     GatewayIntentBits.DirectMessages
   ],
 
-  partials: [Partials.Channel]
+  // Required to receive DM events for channels not in the cache.
+  partials: [Partials.Channel, Partials.Message]
 });
-
-/* ---------------- COMMAND COLLECTION ---------------- */
 
 client.commands = new Collection();
 
-/* ---------------- LOAD COMMANDS ---------------- */
+/* ---------------- COMMAND LOADING ---------------- */
 
-function loadCommands() {
+/**
+ * File commands plus the auto-generated slash versions of every DM command.
+ */
+function loadAllCommands() {
+  const result = loadCommands(client);
 
-  client.commands.clear();
+  let dmLoaded = 0;
+  let dmFailed = 0;
 
-  const basePath = path.join(__dirname, 'src', 'commands');
+  for (const command of dmSlash.buildAll()) {
+    try {
+      const name = command.data.name.toLowerCase();
 
-  let loaded = 0;
-  let failed = 0;
-
-  function walk(dir) {
-
-    const files = fs.readdirSync(dir);
-
-    for (const file of files) {
-
-      const fullPath = path.join(dir, file);
-
-      const stat = fs.statSync(fullPath);
-
-      // 📁 folders
-      if (stat.isDirectory()) {
-        walk(fullPath);
+      if (client.commands.has(name)) {
+        console.log(`[DM SLASH] Skipped duplicate name: ${name}`);
         continue;
       }
 
-      // ❌ ignore non-js
-      if (!file.endsWith('.js')) continue;
-
-      try {
-
-        delete require.cache[require.resolve(fullPath)];
-
-        const command = require(fullPath);
-
-        // validation
-        if (!command?.data?.name) {
-          failed++;
-          console.log(`❌ ${file} → Missing name`);
-          continue;
-        }
-
-        if (!command?.data?.description) {
-          failed++;
-          console.log(`❌ ${file} → Missing description`);
-          continue;
-        }
-
-        if (typeof command.execute !== 'function') {
-          failed++;
-          console.log(`❌ ${file} → Missing execute`);
-          continue;
-        }
-
-        client.commands.set(
-          command.data.name.toLowerCase(),
-          command
-        );
-
-        loaded++;
-
-      } catch (err) {
-
-        failed++;
-
-        console.log(`❌ ${file}`);
-        console.log(`   ↳ ${err.message}`);
-      }
+      client.commands.set(name, command);
+      dmLoaded++;
+    } catch (err) {
+      dmFailed++;
+      console.log(`[DM SLASH] Failed to build ${command?.dmCommand}: ${err.message}`);
     }
   }
 
-  walk(basePath);
+  console.log(`📨 Registered ${dmLoaded} DM slash commands${dmFailed ? ` (${dmFailed} failed)` : ''}`);
 
-  console.log(`📦 Loaded ${loaded} commands`);
-
-  if (failed > 0) {
-    console.log(`❌ Failed ${failed} commands`);
-  }
+  return { ...result, dmLoaded, dmFailed };
 }
 
-/* ---------------- SYNC SLASH COMMANDS ---------------- */
+/* ---------------- SLASH SYNC ---------------- */
 
 async function syncCommands() {
+  if (!CLIENT_ID) {
+    console.log('⚠️  CLIENT_ID missing — skipping slash command sync.');
+    return;
+  }
 
-  const commands = [];
-
-  let synced = 0;
+  const body = [];
   let failed = 0;
 
-  client.commands.forEach(cmd => {
-
+  for (const command of client.commands.values()) {
     try {
-
-      const json = cmd.data.toJSON();
-
-      commands.push(json);
-
-      synced++;
-
+      body.push(command.data.toJSON());
     } catch (err) {
-
       failed++;
-
-      console.log(`❌ ${cmd?.data?.name || 'UNKNOWN COMMAND'}`);
-      console.log(`   ↳ ${err.message}`);
+      console.log(`❌ ${command?.data?.name || 'UNKNOWN'} → ${err.message}`);
     }
-  });
+  }
 
-  const rest = new REST({ version: '10' })
-    .setToken(TOKEN);
+  const rest = new REST({ version: '10' }).setToken(TOKEN);
 
   try {
-
-    console.log(`🔄 Syncing ${synced} commands...`);
-
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-
-    console.log(`✅ Synced ${synced} commands`);
-
-    if (failed > 0) {
-      console.log(`❌ Failed ${failed} commands`);
-    }
-
+    console.log(`🔄 Syncing ${body.length} commands...`);
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body });
+    console.log(`✅ Synced ${body.length} commands${failed ? ` (${failed} failed to build)` : ''}`);
   } catch (err) {
-
     console.log('❌ Sync failed');
     console.log(err.message);
-
   }
 }
 
 /* ---------------- READY ---------------- */
 
 client.once('clientReady', async () => {
-
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // load commands
-  loadCommands();
+  loadAllCommands();
 
-  // sync commands
+  // Assign a stable #N to every guild so DM commands can target them.
+  const numbers = syncConfigNumbers(client);
+  console.log(`🔢 Tracking ${Object.keys(numbers).length} server config numbers`);
+
+  store.update(data => {
+    data.stats.startedAt = new Date().toISOString();
+    if (!data.superOwner && process.env.SUPER_OWNER_ID) {
+      data.superOwner = process.env.SUPER_OWNER_ID;
+    }
+  });
+
+  if (!store.getSuperOwner()) {
+    console.log('⚠️  No Super Owner set. Add SUPER_OWNER_ID=<your id> to .env to enable DM commands.');
+  }
+
+  // Respect privacy mode across restarts.
+  const privacy = store.getPrivacy();
+
+  try {
+    client.user.setPresence(
+      privacy.privacyMode
+        ? { status: 'invisible', activities: [] }
+        : { status: 'online', activities: [{ name: '/help', type: ActivityType.Listening }] }
+    );
+  } catch (err) {
+    console.warn('[PRESENCE]', err.message);
+  }
+
   await syncCommands();
 });
 
-/* ---------------- INTERACTIONS ---------------- */
+/* ---------------- EVENTS ---------------- */
 
-client.on('interactionCreate', async (interaction) => {
+client.on(interactionCreate.name, (interaction) =>
+  interactionCreate.execute(interaction, client)
+);
 
-  if (!interaction.isChatInputCommand()) return;
+client.on(messageCreate.name, (message) =>
+  messageCreate.execute(message, client)
+);
 
-  const command = client.commands.get(
-    interaction.commandName.toLowerCase()
-  );
+/* ---------------- OTJOIN MODE ---------------- */
 
-  if (!command) {
-    return interaction.reply({
-      content: '❌ Command not found',
-      ephemeral: true
-    });
-  }
+client.on('guildCreate', async (guild) => {
+  const number = getConfigNumber(guild.id);
+  console.log(`➕ Joined ${guild.name} (${guild.id}) → #${number}`);
+
+  if (!store.getPrivacy().otjoinMode) return;
+
+  const superOwnerId = store.getSuperOwner();
+
+  // Leave immediately, then tell the Super Owner who added the bot.
+  let inviter = null;
 
   try {
+    const logs = await guild.fetchAuditLogs({ type: 28, limit: 1 });
+    inviter = logs.entries.first()?.executor || null;
+  } catch {
+    // Missing View Audit Log - not fatal.
+  }
 
-    await command.execute(interaction, client);
+  await guild.leave().catch(() => null);
 
-  } catch (err) {
+  if (!superOwnerId) return;
 
-    console.log(`❌ Command Error → ${interaction.commandName}`);
-    console.log(err);
+  const owner = await client.users.fetch(superOwnerId).catch(() => null);
 
-    const msg =
-      `❌ Error: ${err.message || 'Unknown error'}`;
-
-    if (interaction.replied || interaction.deferred) {
-
-      await interaction.followUp({
-        content: msg,
-        ephemeral: true
-      });
-
-    } else {
-
-      await interaction.reply({
-        content: msg,
-        ephemeral: true
-      });
-    }
+  if (owner) {
+    await owner.send({
+      embeds: [ui.warn('OTJoin — Left a server', ui.bullet([
+        `**Server:** ${guild.name} (\`${guild.id}\`)`,
+        `**Members:** ${guild.memberCount}`,
+        `**Added by:** ${inviter ? `${inviter.tag} (\`${inviter.id}\`)` : 'unknown'}`,
+        '',
+        'OTJoin mode is on, so the bot left automatically.'
+      ]))]
+    }).catch(() => null);
   }
 });
 
-/* ---------------- PREFIX ---------------- */
-
-client.on('messageCreate', async (message) => {
-
-  if (message.author.bot) return;
-
-  if (!message.content.startsWith(PREFIX)) return;
-
-  const args = message.content
-    .slice(PREFIX.length)
-    .trim()
-    .split(/ +/);
-
-  const cmd = args.shift()?.toLowerCase();
-
-  // future prefix commands
+client.on('guildDelete', (guild) => {
+  console.log(`➖ Left ${guild.name} (${guild.id})`);
 });
 
 /* ---------------- ERROR HANDLING ---------------- */
+
+client.on('error', err => console.error('[CLIENT ERROR]', err));
+client.on('shardError', err => console.error('[SHARD ERROR]', err));
 
 process.on('unhandledRejection', (err) => {
   console.log('❌ Unhandled Rejection');
@@ -269,3 +220,5 @@ process.on('uncaughtException', (err) => {
 /* ---------------- LOGIN ---------------- */
 
 client.login(TOKEN);
+
+module.exports = { client, loadAllCommands, syncCommands };

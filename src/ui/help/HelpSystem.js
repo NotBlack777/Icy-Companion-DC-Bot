@@ -141,6 +141,39 @@ function buildHelpEmbed(index, client, guild) {
   return embed;
 }
 
+/**
+ * Visible loading state. Only ever shown if the silent acknowledgement
+ * path fails - see src/utils/interactionResponder.js.
+ */
+function buildThinkingEmbed(client) {
+  const avatar = botAvatar(client);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x7dd3fc)
+    .setAuthor({
+      name: 'Icy Companion • Help Center',
+      iconURL: avatar || undefined
+    })
+    .setTitle('❄️ Thinking...')
+    .setDescription('> Fetching that page for you, one moment.')
+    .setTimestamp();
+
+  if (avatar) embed.setThumbnail(avatar);
+  return embed;
+}
+
+/**
+ * Same layout as the live components, but everything is disabled so the
+ * user cannot queue up more clicks while a page is loading.
+ */
+function buildDisabledComponents(index) {
+  return buildHelpComponents(index).map(row => {
+    const clone = ActionRowBuilder.from(row);
+    clone.components.forEach(component => component.setDisabled(true));
+    return clone;
+  });
+}
+
 function buildHelpComponents(index) {
   const page = clampPage(index);
   const totalPages = HELP_CATEGORIES.length;
@@ -195,5 +228,7 @@ module.exports = {
   HELP_CATEGORIES,
   buildHelpEmbed,
   buildHelpComponents,
+  buildThinkingEmbed,
+  buildDisabledComponents,
   clampPage
 };
