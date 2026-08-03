@@ -52,13 +52,18 @@ const HELP_CATEGORIES = [
     color: ICY.violet,
     description: 'Moderation & management commands for server staff.',
     commands: [
-      { name: '/role-info',         desc: 'View detailed info about a role' },
-      { name: '/role-give',         desc: 'Give a role to a user' },
-      { name: '/role-remove',       desc: 'Remove a role from a user' },
-      { name: '/timeout-give',      desc: 'Apply a timeout to a user' },
-      { name: '/timeout-remove',    desc: 'Remove timeout from a user' },
-      { name: '/mute',              desc: 'Mute a user (timeout)' },
-      { name: '/vc-move',           desc: 'Move a user between voice channels' },
+      { name: '/role-info',       desc: 'View detailed info about a role' },
+      { name: '/role-give',      desc: 'Give a role to a user' },
+      { name: '/role-remove',    desc: 'Remove a role from a user' },
+      { name: '/timeout-give',   desc: 'Apply a timeout to a user' },
+      { name: '/timeout-remove', desc: 'Remove timeout from a user' },
+      { name: '/mute',           desc: 'Server-mute a user' },
+      { name: '/vc-move',        desc: 'Move a user between voice channels' },
+      { name: '/warn',           desc: 'Issue a warning to a user' },
+      { name: '/warnings',       desc: 'View a user\'s warning history' },
+      { name: '/clear-warnings', desc: 'Clear all warnings from a user' },
+      { name: '/soft-ban',      desc: 'Ban + unban to clear messages' },
+      { name: '/purge',          desc: 'Bulk delete messages' },
     ]
   },
   {
@@ -68,12 +73,40 @@ const HELP_CATEGORIES = [
     color: ICY.mint,
     description: 'Track and manage daily attendance.',
     commands: [
-      { name: '/attendance',             desc: 'Mark your attendance for today' },
-      { name: '/attendance-log',         desc: 'View recent attendance logs' },
-      { name: '/attendance-reset',       desc: 'Reset attendance and streaks' },
-      { name: '/top-staff',               desc: 'View the attendance streak leaderboard' },
-      { name: '/set-staff-role',          desc: 'Set the staff role' },
-      { name: '/set-attendance-channel',  desc: 'Set the attendance channel' }
+      { name: '/attendance',          desc: 'Mark your attendance for today' },
+      { name: '/attendance-check',    desc: 'Check a user\'s attendance record' },
+      { name: '/attendance-set',     desc: 'Manually set a user\'s attendance (staff)' },
+      { name: '/attendance-remove',  desc: 'Remove a user\'s attendance record (staff)' },
+      { name: '/attendance-history', desc: 'View a user\'s attendance history' },
+      { name: '/attendance-log',     desc: 'View recent attendance logs' },
+      { name: '/attendance-reset',   desc: 'Reset attendance and streaks' },
+      { name: '/top-staff',         desc: 'View the attendance streak leaderboard' },
+      { name: '/set-staff-role',    desc: 'Set the staff role' },
+      { name: '/set-attendance-channel', desc: 'Set the attendance channel' }
+    ]
+  },
+  {
+    id: 'staff',
+    label: 'Staff',
+    emoji: '⭐',
+    color: ICY.amber,
+    description: 'Staff management commands.',
+    commands: [
+      { name: '/staff-add',    desc: 'Add a user to the staff role' },
+      { name: '/staff-remove', desc: 'Remove a user from staff' },
+      { name: '/staff-list',   desc: 'List staff with attendance status' },
+    ]
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    emoji: '📊',
+    color: ICY.glacier,
+    description: 'Attendance reports and analytics.',
+    commands: [
+      { name: '/report-today',     desc: 'Today\'s attendance report' },
+      { name: '/report-inactive',  desc: 'Find inactive staff' },
+      { name: '/leaderboard',      desc: 'Attendance streak leaderboard' },
     ]
   },
   {
@@ -83,13 +116,10 @@ const HELP_CATEGORIES = [
     color: ICY.amber,
     description: 'Manage bot owners for this server.',
     commands: [
-      { name: '/owner',              desc: 'View the primary and extra owners' },
-      { name: '/owner-list',         desc: 'Alias of /owner' },
+      { name: '/owner',               desc: 'View the primary and extra owners' },
       { name: '/add-extra-owner',     desc: 'Add an extra bot owner' },
-      { name: '/remove-extra-owner', desc: 'Remove an extra bot owner' },
-      { name: '/add-owner',           desc: 'Alias of /add-extra-owner' },
-      { name: '/remove-owner',        desc: 'Alias of /remove-extra-owner' },
-      { name: '/transfer-ownership',  desc: 'Transfer primary ownership' }
+      { name: '/remove-extra-owner',   desc: 'Remove an extra bot owner' },
+      { name: '/transfer-ownership',   desc: 'Transfer primary ownership' }
     ]
   },
   {
@@ -121,7 +151,7 @@ const HELP_CATEGORIES = [
       { name: '/roll',     desc: 'Roll a random number' },
       { name: '/8ball',    desc: 'Ask the magic 8-ball' },
       { name: '/choose',   desc: 'Choose between comma-separated options' },
-      { name: '/poll',     desc: 'Create a reaction poll' }
+      { name: '/poll',      desc: 'Create a reaction poll' }
     ]
   },
   {
@@ -131,11 +161,11 @@ const HELP_CATEGORIES = [
     color: ICY.glacier,
     description: 'Configure prefix and ignore lists.',
     commands: [
-      { name: '/setprefix',       desc: 'Change the text command prefix' },
-      { name: '/ignore-role',     desc: 'Toggle a role being ignored' },
-      { name: '/ignore-user',     desc: 'Toggle a user being ignored' },
-      { name: '/ignore-channel',  desc: 'Toggle a channel being ignored' },
-      { name: '/ignore-list',     desc: 'View everything being ignored' }
+      { name: '/setprefix',      desc: 'Change the text command prefix' },
+      { name: '/ignore-role',    desc: 'Toggle a role being ignored' },
+      { name: '/ignore-user',    desc: 'Toggle a user being ignored' },
+      { name: '/ignore-channel', desc: 'Toggle a channel being ignored' },
+      { name: '/ignore-list',    desc: 'View everything being ignored' }
     ]
   }
 ];

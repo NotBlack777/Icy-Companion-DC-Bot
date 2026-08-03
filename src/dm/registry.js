@@ -29,10 +29,11 @@ const GROUPS = [
   { id: 'broadcast',  label: 'Broadcast',  emoji: '📢' },
   { id: 'management', label: 'Management', emoji: '⚙️' },
   { id: 'reports',    label: 'Reports',    emoji: '📊' },
+  { id: 'staff',      label: 'Staff',      emoji: '⭐' },
   { id: 'dmlogger',   label: 'DM Logger',  emoji: '📨' },
   { id: 'privacy',    label: 'Privacy',    emoji: '🔒' },
   { id: 'security',   label: 'Security',   emoji: '🛡️' },
-  { id: 'moderation', label: 'Moderation', emoji: '🛡️' }
+  { id: 'moderation', label: 'Moderation', emoji: '⚠️' }
 ];
 
 const commands = new Map();

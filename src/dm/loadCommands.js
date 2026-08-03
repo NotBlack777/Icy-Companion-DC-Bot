@@ -19,10 +19,12 @@ function loadDmCommands() {
   require('./commands/broadcast');
   require('./commands/management');
   require('./commands/reports');
+  require('./commands/staff');
   require('./commands/dmlogger');
   require('./commands/privacy');
   require('./commands/security');
   require('./commands/moderation');
+  require('./commands/warnings');
 }
 
 module.exports = loadDmCommands;
