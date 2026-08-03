@@ -1,6 +1,7 @@
 const { Events, MessageFlags } = require('discord.js');
 const { getServerConfig } = require('../utils/configManager');
 const { canUseCommand } = require('../utils/permissions');
+const { isSuperOwner } = require('../utils/globalStore');
 const safeRun = require('../utils/safeRunner');
 const { safeUpdate, safeReply } = require('../utils/interactionResponder');
 
@@ -126,8 +127,12 @@ module.exports = {
       const config = getServerConfig(interaction.guild.id);
 
       if (!canUseCommand(config, interaction)) {
+        const userId = interaction.user?.id;
+        const isSO = isSuperOwner(userId);
         return safeReply(interaction, {
-          content: '🚫 You cannot use commands in this ignored context.',
+          content: isSO
+            ? '🚫 You are the **Super Owner** — this action is denied by an ignore rule. Check `/ignore-list` in this server.'
+            : '🚫 You cannot use commands in this ignored context.',
           flags: MessageFlags.Ephemeral
         });
       }

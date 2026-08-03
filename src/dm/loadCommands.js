@@ -22,6 +22,7 @@ function loadDmCommands() {
   require('./commands/dmlogger');
   require('./commands/privacy');
   require('./commands/security');
+  require('./commands/moderation');
 }
 
 module.exports = loadDmCommands;
