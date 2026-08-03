@@ -1,11 +1,14 @@
-const { Events } = require('discord.js');
+const { Events, MessageFlags } = require('discord.js');
 const { getServerConfig } = require('../utils/configManager');
 const { canUseCommand } = require('../utils/permissions');
 const safeRun = require('../utils/safeRunner');
+const { safeUpdate, safeReply } = require('../utils/interactionResponder');
 
 const {
   buildHelpEmbed,
   buildHelpComponents,
+  buildThinkingEmbed,
+  buildDisabledComponents,
   HELP_CATEGORIES,
   clampPage
 } = require('../ui/help/HelpSystem');
@@ -16,11 +19,39 @@ function getCurrentHelpPage(interaction) {
   return match ? clampPage(Number(match[1]) - 1) : 0;
 }
 
+/**
+ * Render a help page through the safe responder.
+ *
+ * Fast path is a silent, instant swap. If anything is slow the responder
+ * acknowledges first (falling back to a visible "Thinking..." embed) so
+ * the user never sees "Icy Companion took too long to respond".
+ */
+function renderHelpPage(interaction, client, page) {
+  return safeUpdate(
+    interaction,
+    () => ({
+      embeds: [buildHelpEmbed(page, client, interaction.guild)],
+      components: buildHelpComponents(page)
+    }),
+    {
+      thinking: () => ({
+        embeds: [buildThinkingEmbed(client)],
+        components: buildDisabledComponents(page)
+      }),
+      errorMessage: 'Could not open that help page. Try running /help again.'
+    }
+  );
+}
+
 module.exports = {
   name: Events.InteractionCreate,
 
   async execute(interaction, client) {
+    const activeClient = client || interaction.client;
+
     try {
+      /* ---------------- BUTTONS ---------------- */
+
       if (interaction.isButton()) {
         if (!interaction.customId.startsWith('help_')) return;
 
@@ -44,21 +75,16 @@ module.exports = {
             return;
         }
 
-        return interaction.update({
-          embeds: [buildHelpEmbed(page, client, interaction.guild)],
-          components: buildHelpComponents(page)
-        });
+        return renderHelpPage(interaction, activeClient, page);
       }
+
+      /* ---------------- SELECT MENUS ---------------- */
 
       if (interaction.isStringSelectMenu()) {
         // Current help menu.
         if (interaction.customId === 'help_select') {
           const page = clampPage(Number(interaction.values[0]));
-
-          return interaction.update({
-            embeds: [buildHelpEmbed(page, client, interaction.guild)],
-            components: buildHelpComponents(page)
-          });
+          return renderHelpPage(interaction, activeClient, page);
         }
 
         // Backwards compatibility for old help messages that used help-menu.
@@ -66,57 +92,54 @@ module.exports = {
           const requested = interaction.values[0];
           const page = Math.max(0, HELP_CATEGORIES.findIndex(category => category.id === requested));
 
-          return interaction.update({
-            embeds: [buildHelpEmbed(page, client, interaction.guild)],
-            components: buildHelpComponents(page)
-          });
+          return renderHelpPage(interaction, activeClient, page);
         }
 
         return;
       }
 
+      /* ---------------- SLASH COMMANDS ---------------- */
+
       if (!interaction.isChatInputCommand()) return;
 
-      if (!interaction.guild) {
-        return interaction.reply({
-          content: '❌ Only works in servers.',
-          ephemeral: true
+      const command = activeClient.commands.get(interaction.commandName.toLowerCase());
+
+      if (!command) {
+        return safeReply(interaction, {
+          content: '❌ Command not found.',
+          flags: MessageFlags.Ephemeral
         });
       }
 
-      const command = client.commands.get(interaction.commandName.toLowerCase());
+      // DM commands manage their own permissions and work outside guilds.
+      if (!interaction.guild) {
+        if (command.category === 'dm' || command.dmCommand) {
+          return safeRun(command, interaction, activeClient, null);
+        }
 
-      if (!command) {
-        return interaction.reply({
-          content: '❌ Command not found.',
-          ephemeral: true
+        return safeReply(interaction, {
+          content: '❌ That command only works in a server. Use `/dm-help` to see DM commands.',
+          flags: MessageFlags.Ephemeral
         });
       }
 
       const config = getServerConfig(interaction.guild.id);
 
       if (!canUseCommand(config, interaction)) {
-        return interaction.reply({
+        return safeReply(interaction, {
           content: '🚫 You cannot use commands in this ignored context.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
-      return safeRun(command, interaction, client, config);
+      return safeRun(command, interaction, activeClient, config);
     } catch (err) {
       console.error('[INTERACTION ERROR]', err);
 
-      if (!interaction.replied && !interaction.deferred) {
-        return interaction.reply({
-          content: '❌ Something broke.',
-          ephemeral: true
-        }).catch(() => null);
-      }
-
-      return interaction.followUp({
+      return safeReply(interaction, {
         content: '❌ Something broke.',
-        ephemeral: true
-      }).catch(() => null);
+        flags: MessageFlags.Ephemeral
+      });
     }
   }
 };

@@ -66,8 +66,52 @@ function loadCommands(client) {
 
   walk(commandsPath);
 
-  console.log(`🔄 Loaded ${loaded} commands (${failed} failed)`);
-  return { loaded, failed };
+  const aliased = registerAliases(client);
+
+  console.log(`🔄 Loaded ${loaded} commands (${failed} failed, ${aliased} aliases)`);
+  return { loaded, failed, aliased };
+}
+
+/**
+ * Hyphenated names shown in the help panel, mapped to the original
+ * command files. Both names run the same code.
+ */
+const ALIASES = {
+  serverinfo: 'server-info',
+  botinfo: 'bot-info',
+  userinfo: 'user-info',
+  membercount: 'member-count',
+  'owner-list': 'owner',
+  'add-owner': 'add-extra-owner',
+  'remove-owner': 'remove-extra-owner'
+};
+
+function registerAliases(client) {
+  const { makeAlias } = require('../utils/commandAlias');
+  let count = 0;
+
+  for (const [original, alias] of Object.entries(ALIASES)) {
+    const command = client.commands.get(original);
+
+    if (!command) {
+      console.log(`[ALIAS] Skipped ${alias} — ${original} is not loaded`);
+      continue;
+    }
+
+    if (client.commands.has(alias)) {
+      console.log(`[ALIAS] Skipped ${alias} — name already in use`);
+      continue;
+    }
+
+    try {
+      client.commands.set(alias, makeAlias(command, alias));
+      count++;
+    } catch (err) {
+      console.log(`[ALIAS] Failed ${alias}: ${err.message}`);
+    }
+  }
+
+  return count;
 }
 
 module.exports = loadCommands;

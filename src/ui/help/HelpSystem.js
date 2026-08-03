@@ -23,7 +23,10 @@ const HELP_CATEGORIES = [
     commands: [
       { name: '/attendance', desc: 'Mark your attendance for today' },
       { name: '/attendance-log', desc: 'View recent attendance logs' },
-      { name: '/attendance-reset', desc: 'Reset attendance and streaks' }
+      { name: '/attendance-reset', desc: 'Reset attendance and streaks' },
+      { name: '/top-staff', desc: 'View the attendance streak leaderboard' },
+      { name: '/set-staff-role', desc: 'Set the staff role' },
+      { name: '/set-attendance-channel', desc: 'Set the attendance channel' }
     ]
   },
   {
@@ -33,9 +36,12 @@ const HELP_CATEGORIES = [
     color: 0xfee75c,
     description: 'Manage bot owners for this server.',
     commands: [
-      { name: '/add-owner', desc: 'Add an extra bot owner' },
-      { name: '/remove-owner', desc: 'Remove an extra bot owner' },
-      { name: '/owner-list', desc: 'View the primary and extra owners' },
+      { name: '/owner', desc: 'View the primary and extra owners' },
+      { name: '/owner-list', desc: 'Alias of /owner' },
+      { name: '/add-extra-owner', desc: 'Add an extra bot owner' },
+      { name: '/remove-extra-owner', desc: 'Remove an extra bot owner' },
+      { name: '/add-owner', desc: 'Alias of /add-extra-owner' },
+      { name: '/remove-owner', desc: 'Alias of /remove-extra-owner' },
       { name: '/transfer-ownership', desc: 'Transfer primary ownership' }
     ]
   },
@@ -46,19 +52,43 @@ const HELP_CATEGORIES = [
     color: 0x7dd3fc,
     description: 'General utility and fun commands.',
     commands: [
-      { name: '/help', desc: 'Open this help menu' },
       { name: '/ping', desc: 'Check bot latency' },
       { name: '/uptime', desc: 'View bot uptime' },
-      { name: '/botinfo', desc: 'View bot information' },
-      { name: '/serverinfo', desc: 'View server information' },
-      { name: '/userinfo', desc: 'View user information' },
-      { name: '/membercount', desc: 'View member statistics' },
+      { name: '/server-info', desc: 'View server information' },
+      { name: '/bot-info', desc: 'View bot information' },
+      { name: '/user-info', desc: 'View user information' },
+      { name: '/member-count', desc: 'View member statistics' },
+      { name: '/help', desc: 'Open this help menu' },
+      { name: '/reload', desc: 'Reload command files' }
+    ]
+  },
+  {
+    id: 'fun',
+    label: 'Fun',
+    emoji: '🎲',
+    color: 0xf472b6,
+    description: 'Games, randomisers and polls.',
+    commands: [
       { name: '/avatar', desc: 'View a user avatar' },
       { name: '/coinflip', desc: 'Flip a coin' },
       { name: '/roll', desc: 'Roll a random number' },
       { name: '/8ball', desc: 'Ask the magic 8-ball' },
       { name: '/choose', desc: 'Choose between comma-separated options' },
-      { name: '/reload', desc: 'Reload command files' }
+      { name: '/poll', desc: 'Create a reaction poll' }
+    ]
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    emoji: '⚙️',
+    color: 0xa78bfa,
+    description: 'Configure prefix and ignore lists.',
+    commands: [
+      { name: '/setprefix', desc: 'Change the text command prefix' },
+      { name: '/ignore-role', desc: 'Toggle a role being ignored' },
+      { name: '/ignore-user', desc: 'Toggle a user being ignored' },
+      { name: '/ignore-channel', desc: 'Toggle a channel being ignored' },
+      { name: '/ignore-list', desc: 'View everything being ignored' }
     ]
   }
 ];
@@ -71,6 +101,22 @@ function clampPage(index) {
 
 function botAvatar(client) {
   return client?.user?.displayAvatarURL?.() || null;
+}
+
+/**
+ * Current text prefix for the footer. Falls back to '.' if the config
+ * cannot be read (for example in DMs, where there is no guild).
+ */
+function guildPrefix(guild) {
+  if (!guild?.id) return '.';
+
+  try {
+    // Required lazily to avoid a circular import at module load time.
+    const { getServerConfig } = require('../../utils/configManager');
+    return getServerConfig(guild.id).prefix || '.';
+  } catch {
+    return '.';
+  }
 }
 
 function buildHelpEmbed(index, client, guild) {
@@ -102,7 +148,7 @@ function buildHelpEmbed(index, client, guild) {
         '> Use the buttons or dropdown below to navigate.'
       ].join('\n'))
       .setFooter({
-        text: `Page 1/${totalPages} • ${guild?.name || 'Direct Messages'}`
+        text: `Page 1/${totalPages} • Current prefix: ${guildPrefix(guild)} • ${guild?.name || 'Direct Messages'}`
       })
       .setTimestamp();
 
@@ -133,12 +179,45 @@ function buildHelpEmbed(index, client, guild) {
       '> Use the buttons below to navigate.'
     ].join('\n'))
     .setFooter({
-      text: `Page ${page + 1}/${totalPages} • Icy Companion`
+      text: `Page ${page + 1}/${totalPages} • Current prefix: ${guildPrefix(guild)} • ${guild?.name || 'Icy Companion'}`
     })
     .setTimestamp();
 
   if (avatar) embed.setThumbnail(avatar);
   return embed;
+}
+
+/**
+ * Visible loading state. Only ever shown if the silent acknowledgement
+ * path fails - see src/utils/interactionResponder.js.
+ */
+function buildThinkingEmbed(client) {
+  const avatar = botAvatar(client);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x7dd3fc)
+    .setAuthor({
+      name: 'Icy Companion • Help Center',
+      iconURL: avatar || undefined
+    })
+    .setTitle('❄️ Thinking...')
+    .setDescription('> Fetching that page for you, one moment.')
+    .setTimestamp();
+
+  if (avatar) embed.setThumbnail(avatar);
+  return embed;
+}
+
+/**
+ * Same layout as the live components, but everything is disabled so the
+ * user cannot queue up more clicks while a page is loading.
+ */
+function buildDisabledComponents(index) {
+  return buildHelpComponents(index).map(row => {
+    const clone = ActionRowBuilder.from(row);
+    clone.components.forEach(component => component.setDisabled(true));
+    return clone;
+  });
 }
 
 function buildHelpComponents(index) {
@@ -195,5 +274,7 @@ module.exports = {
   HELP_CATEGORIES,
   buildHelpEmbed,
   buildHelpComponents,
+  buildThinkingEmbed,
+  buildDisabledComponents,
   clampPage
 };
