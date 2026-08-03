@@ -1,43 +1,28 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder,
-} = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'utility',
-
   data: new SlashCommandBuilder()
     .setName('avatar')
     .setDescription('View a user avatar')
     .addUserOption(option =>
-      option
-        .setName('user')
+      option.setName('user')
         .setDescription('User to view')
-        .setRequired(false)
-    ),
+        .setRequired(false)),
 
   async execute(interaction) {
-    const target =
-      interaction.options.getUser('user') ||
-      interaction.user;
+    const target = interaction.options.getUser('user') || interaction.user;
+    const avatar = target.displayAvatarURL({ size: 1024 });
 
-    const avatar =
-      target.displayAvatarURL({
-        size: 4096,
-        dynamic: true,
-      });
-
-    const embed = new EmbedBuilder()
-      .setColor(0x7DD3FC)
-      .setTitle(`${target.username}'s Avatar`)
-      .setImage(avatar)
-      .setFooter({
-        text: `Requested by ${interaction.user.tag}`,
-      })
-      .setTimestamp();
-
-    await interaction.reply({
-      embeds: [embed],
+    const embed = createEmbed({
+      author: { name: `${target.tag}`, iconURL: avatar },
+      description: `[**Download Avatar**](${avatar})`,
+      image: avatar,
+      footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
+      timestamp: true
     });
-  },
+
+    await interaction.reply({ embeds: [embed] });
+  }
 };

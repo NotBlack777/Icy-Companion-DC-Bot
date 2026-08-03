@@ -1,7 +1,7 @@
 const {
-  SlashCommandBuilder,
-  EmbedBuilder
+  SlashCommandBuilder
 } = require('discord.js');
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'utility',
@@ -11,35 +11,23 @@ module.exports = {
     .setDescription('Check bot latency'),
 
   async execute(interaction, clientArg) {
-
     const client = clientArg || interaction.client;
 
     await interaction.reply({
-      content: '⏳ Measuring...'
+      content: `${e('loading')} Measuring...`,
+      ephemeral: true
     });
 
     const sent = await interaction.fetchReply();
+    const apiPing = sent.createdTimestamp - interaction.createdTimestamp;
 
-    const apiPing =
-      sent.createdTimestamp -
-      interaction.createdTimestamp;
-
-    const embed = new EmbedBuilder()
-      .setColor(0x7DD3FC)
-      .setTitle('🏓 Pong!')
-      .addFields(
-        {
-          name: '📡 WebSocket',
-          value: `\`${client.ws.ping}ms\``,
-          inline: true
-        },
-        {
-          name: '🔄 API',
-          value: `\`${apiPing}ms\``,
-          inline: true
-        }
-      )
-      .setTimestamp();
+    const embed = createEmbed({
+      description: `### ${e('rocket')} Connectivity Status\n` +
+                   `> **WebSocket:** \`${client.ws.ping}ms\`\n` +
+                   `> **API Latency:** \`${apiPing}ms\``,
+      footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
+      timestamp: true
+    });
 
     await interaction.editReply({
       content: null,
