@@ -17,8 +17,20 @@ function isOwner(config = {}, userId) {
 }
 
 function isStaff(config = {}, member) {
-  if (!member || !config.staffRole) return false;
-  return Boolean(member.roles?.cache?.has(config.staffRole));
+  if (!member) return false;
+
+  // Check virtual staff list first
+  if (Array.isArray(config.virtualStaff) && config.virtualStaff.some(s => s.id === member.id)) {
+    return true;
+  }
+
+  // Support multiple staff roles
+  const roles = Array.isArray(config.staffRoles) && config.staffRoles.length
+    ? config.staffRoles
+    : config.staffRole ? [config.staffRole] : [];
+
+  if (!roles.length) return false;
+  return roles.some(roleId => member.roles?.cache?.has(roleId));
 }
 
 function isIgnored(config = {}, userId, channelId) {

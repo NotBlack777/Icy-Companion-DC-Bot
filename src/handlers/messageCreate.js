@@ -13,6 +13,7 @@ const { Events } = require('discord.js');
 const dm = require('../dm');
 const ui = require('../dm/ui');
 const store = require('../utils/globalStore');
+const { handleAutoMod } = require('../utils/autoMod');
 
 /**
  * Owners get a typing indicator, so long commands feel responsive.
@@ -29,6 +30,11 @@ module.exports = {
   async execute(message, client) {
     try {
       if (message.author.bot) return;
+
+      // ─── Auto-moderation (runs on every message) ──────────
+      if (message.guild) {
+        await handleAutoMod(message).catch(() => null);
+      }
 
       const botId = client.user.id;
 
