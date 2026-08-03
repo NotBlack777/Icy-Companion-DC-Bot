@@ -1,31 +1,14 @@
-/**
- * /lock — Lock a channel (prevent members from sending messages)
- */
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-
-const ICY = { frost: 0x00d4ff, success: 0x00f5a0, error: 0xff3d71, warn: 0xffaa00 };
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { createEmbed, e, errorEmbed } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'moderation',
-
   data: new SlashCommandBuilder()
     .setName('lock')
     .setDescription('Lock a channel to prevent members from sending messages')
-    .addChannelOption(opt =>
-      opt.setName('channel')
-        .setDescription('Channel to lock (defaults to current)')
-        .setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName('reason')
-        .setDescription('Reason for locking')
-        .setRequired(false)
-    )
-    .addRoleOption(opt =>
-      opt.setName('role')
-        .setDescription('Lock for a specific role (defaults to @everyone)')
-        .setRequired(false)
-    ),
+    .addChannelOption(opt => opt.setName('channel').setDescription('Channel to lock (defaults to current)').setRequired(false))
+    .addStringOption(opt => opt.setName('reason').setDescription('Reason for locking').setRequired(false))
+    .addRoleOption(opt => opt.setName('role').setDescription('Lock for a specific role (defaults to @everyone)').setRequired(false)),
 
   async execute(interaction) {
     const channel = interaction.options.getChannel('channel') || interaction.channel;
@@ -33,10 +16,7 @@ module.exports = {
     const role = interaction.options.getRole('role') || interaction.guild.roles.everyone;
 
     if (!channel.isTextBased()) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(ICY.error).setTitle('❌ Invalid Channel').setDescription('Can only lock text channels.').setFooter({ text: '✦ Icy Companion' }).setTimestamp()],
-        ephemeral: true
-      });
+      return interaction.reply({ embeds: [errorEmbed('Can only lock text channels.')], ephemeral: true });
     }
 
     try {
@@ -47,26 +27,21 @@ module.exports = {
         [PermissionFlagsBits.CreatePrivateThreads]: false,
       }, { reason: reason ? `[Lock] ${reason} — By ${interaction.user.tag}` : `[Lock] By ${interaction.user.tag}` });
     } catch (err) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(ICY.error).setTitle('❌ Lock Failed').setDescription(`\`${err.message}\``).setFooter({ text: '✦ Icy Companion' }).setTimestamp()],
-        ephemeral: true
-      });
+      return interaction.reply({ embeds: [errorEmbed(`Lock failed: \`${err.message}\``)], ephemeral: true });
     }
 
-    return interaction.reply({
-      embeds: [new EmbedBuilder()
-        .setColor(ICY.warn)
-        .setTitle('🔒 Channel Locked')
-        .setDescription([
-          `**Channel:** ${channel}`,
-          `**Role:** ${role}`,
-          reason ? `**Reason:** ${reason}` : '',
-          '',
-          'Members cannot send messages until unlocked with `/unlock`.',
-        ].filter(Boolean).join('\n'))
-        .setFooter({ text: `✦ Locked by ${interaction.user.tag}` })
-        .setTimestamp()
-      ]
+    const embed = createEmbed({
+      color: 0xffaa00,
+      author: { name: 'Channel Locked', iconURL: interaction.guild.iconURL() || undefined },
+      description: `### 🔒 Security Alert\n` +
+                   `> **Channel:** ${channel}\n` +
+                   `> **Target Role:** ${role}\n` +
+                   `> **Reason:** ${reason || 'No reason provided'}\n\n` +
+                   `*Members are restricted from sending messages until unlocked.*`,
+      footer: { text: `Locked by ${interaction.user.tag}` },
+      timestamp: true
     });
+
+    return interaction.reply({ embeds: [embed] });
   }
 };

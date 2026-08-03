@@ -1,11 +1,8 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder
-} = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'utility',
-
   data: new SlashCommandBuilder()
     .setName('membercount')
     .setDescription('View server member statistics'),
@@ -23,7 +20,6 @@ module.exports = {
     try {
       await guild.members.fetch();
     } catch (err) {
-      // The bot may not have the GuildMembers intent. Cached members still provide useful stats.
       console.warn(`[MEMBERCOUNT] Could not fetch all members in ${guild.id}: ${err.message}`);
     }
 
@@ -32,38 +28,16 @@ module.exports = {
     const humans = Math.max(0, total - bots);
     const online = guild.members.cache.filter(member => member.presence && member.presence.status !== 'offline').size;
 
-    const embed = new EmbedBuilder()
-      .setColor(0x7dd3fc)
-      .setTitle('👥 Member Count')
-      .addFields(
-        {
-          name: '👥 Total Members',
-          value: `\`${total}\``,
-          inline: true
-        },
-        {
-          name: '🧑 Humans',
-          value: `\`${humans}\``,
-          inline: true
-        },
-        {
-          name: '🤖 Bots (cached)',
-          value: `\`${bots}\``,
-          inline: true
-        },
-        {
-          name: '🟢 Online (cached)',
-          value: `\`${online}\``,
-          inline: true
-        }
-      )
-      .setFooter({
-        text: `Requested by ${interaction.user.tag}`
-      })
-      .setTimestamp();
-
-    const icon = guild.iconURL({ size: 4096 });
-    if (icon) embed.setThumbnail(icon);
+    const embed = createEmbed({
+      description: `### ${e('home')} Server Population\n` +
+                   `> **Total Members:** \`${total}\`\n` +
+                   `> **Humans:** \`${humans}\`\n` +
+                   `> **Bots:** \`${bots}\` (cached)\n` +
+                   `> **Online:** \`${online}\` (cached)`,
+      thumbnail: guild.iconURL({ size: 1024 }),
+      footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
+      timestamp: true
+    });
 
     return interaction.reply({ embeds: [embed] });
   }

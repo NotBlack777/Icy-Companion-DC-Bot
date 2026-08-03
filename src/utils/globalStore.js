@@ -62,7 +62,9 @@ function defaults() {
     stats: {
       startedAt: null,
       restarts: 0
-    }
+    },
+
+    emojis: {}
   };
 }
 
@@ -325,6 +327,24 @@ function findUserByThread(channelId) {
   return Object.keys(threads).find(userId => threads[userId] === channelId) || null;
 }
 
+/* ---------------- EMOJIS ---------------- */
+
+function setEmoji(name, value) {
+  return update(data => {
+    if (!data.emojis) data.emojis = {};
+    data.emojis[name] = value;
+  });
+}
+
+function getEmoji(name, fallback = '') {
+  const { emojis } = load();
+  return emojis?.[name] || fallback;
+}
+
+function getAllEmojis() {
+  return load().emojis || {};
+}
+
 module.exports = {
   filePath,
   defaults,
@@ -365,5 +385,9 @@ module.exports = {
   isBlacklisted,
   setThread,
   getThread,
-  findUserByThread
+  findUserByThread,
+
+  setEmoji,
+  getEmoji,
+  getAllEmojis
 };

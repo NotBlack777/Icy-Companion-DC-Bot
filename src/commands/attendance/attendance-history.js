@@ -1,11 +1,7 @@
-/**
- * /attendance-history — View a user's attendance history
- */
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { getServerConfig } = require('../../utils/configManager');
 const { getAllStreaks } = require('../../utils/streakSystem');
-
-const ICY = { frost: 0x00d4ff, glacier: 0x0096c7, mint: 0x00f5d4, amber: 0xffd60a };
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 function dateKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -18,7 +14,6 @@ function daysAgo(days) {
 
 module.exports = {
   category: 'attendance',
-
   data: new SlashCommandBuilder()
     .setName('attendance-history')
     .setDescription('View a user\'s attendance history over the last N days')
@@ -35,9 +30,6 @@ module.exports = {
     const streak = streaks[`${interaction.guild.id}-${target.id}`];
 
     const today = dateKey();
-    const since = daysAgo(days);
-
-    // Build 30-day grid
     const grid = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i);
@@ -50,7 +42,6 @@ module.exports = {
     const totalMarked = grid.filter(g => g.marked).length;
     const rate = Math.round((totalMarked / days) * 100);
 
-    // Show grid as blocks of 7 days (weeks)
     const weeks = [];
     for (let i = 0; i < grid.length; i += 7) {
       weeks.push(grid.slice(i, i + 7));
@@ -61,35 +52,23 @@ module.exports = {
         if (d.marked) return d.isToday ? '🟢' : '🟦';
         return d.isToday ? '⚪' : '⬛';
       }).join('');
-      const startDate = week[0].key.slice(5);
-      const endDate = week[week.length - 1].key.slice(5);
-      return `  Week ${wi+1} \`${startDate}–${endDate}\` ${markers}`;
+      return `Week ${wi+1}: ${markers}`;
     });
 
-    const embed = new EmbedBuilder()
-      .setColor(ICY.frost)
-      .setAuthor({ name: '✦ Icy Companion', iconURL: interaction.client.user?.displayAvatarURL?.() || undefined })
-      .setTitle(`📅 Attendance History — ${target.tag}`)
-      .setThumbnail(target.displayAvatarURL({ size: 128 }))
-      .setDescription([
-        '```',
-        `  ╭─ ${target.tag}'s Attendance (${days} days)`,
-        `  │  Marked    : ${totalMarked}/${days}`,
-        `  │  Rate      : ${rate}%`,
-        `  │  Streak    : ${streak?.streak || 0} days`,
-        `  ╰────────────────────────`,
-        '```',
-        '',
-        '```',
-        '  Legend: 🟦=marked  🟢=today+marked  ⬛=missed  ⚪=today',
-        '```',
-        '',
-        '```',
-        gridLines.join('\n'),
-        '```',
-      ].join('\n'))
-      .setFooter({ text: `✦ ${days}-day history • ${interaction.guild.name}` })
-      .setTimestamp();
+    const embed = createEmbed({
+      author: { name: `History: ${target.tag}`, iconURL: target.displayAvatarURL() },
+      description: `### ${e('file')} Attendance Analytics\n` +
+                   `> **Period:** Last \`${days}\` days\n` +
+                   `> **Total Marked:** \`${totalMarked}\` days\n` +
+                   `> **Attendance Rate:** \`${rate}%\`\n` +
+                   `> **Current Streak:** \`${streak?.streak || 0} days\`\n\n` +
+                   `**Visual Activity:**\n` +
+                   `\`\`\`\n${gridLines.join('\n')}\n\`\`\`\n` +
+                   `> 🟦 Marked | ⬛ Missed | 🟢 Today`,
+      thumbnail: target.displayAvatarURL({ size: 256 }),
+      footer: { text: `Tracking since ${daysAgo(days)}` },
+      timestamp: true
+    });
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }

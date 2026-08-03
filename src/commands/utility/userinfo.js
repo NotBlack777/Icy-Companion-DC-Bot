@@ -1,7 +1,5 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder
-} = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 function formatTimestamp(timestamp) {
   return timestamp ? `<t:${Math.floor(timestamp / 1000)}:F>` : 'Unknown';
@@ -9,16 +7,13 @@ function formatTimestamp(timestamp) {
 
 module.exports = {
   category: 'utility',
-
   data: new SlashCommandBuilder()
     .setName('userinfo')
     .setDescription('View information about a user')
     .addUserOption(option =>
-      option
-        .setName('user')
+      option.setName('user')
         .setDescription('User to lookup')
-        .setRequired(false)
-    ),
+        .setRequired(false)),
 
   async execute(interaction) {
     if (!interaction.guild) {
@@ -29,7 +24,6 @@ module.exports = {
     }
 
     const target = interaction.options.getUser('user') || interaction.user;
-
     let member = null;
     try {
       member = await interaction.guild.members.fetch(target.id);
@@ -44,9 +38,7 @@ module.exports = {
       .join(', ') || 'None';
 
     const roleSuffix = member?.roles?.cache?.size > 16 ? ' (showing first 15)' : '';
-    const badges = [];
     const flags = target.flags?.toArray?.() || [];
-
     const badgeMap = {
       Staff: '👨‍💼 Staff',
       Partner: '🤝 Partner',
@@ -58,51 +50,20 @@ module.exports = {
       ActiveDeveloper: '⚡ Active Dev',
       CertifiedModerator: '🛡️ Moderator'
     };
+    const badges = flags.map(flag => badgeMap[flag]).filter(Boolean);
 
-    for (const flag of flags) {
-      if (badgeMap[flag]) badges.push(badgeMap[flag]);
-    }
-
-    const avatar = target.displayAvatarURL({ size: 4096 });
-
-    const embed = new EmbedBuilder()
-      .setColor(0x7dd3fc)
-      .setAuthor({
-        name: target.tag,
-        iconURL: avatar
-      })
-      .setThumbnail(avatar)
-      .addFields(
-        {
-          name: '🆔 User ID',
-          value: `\`${target.id}\``,
-          inline: false
-        },
-        {
-          name: '📅 Account Created',
-          value: formatTimestamp(target.createdTimestamp),
-          inline: false
-        },
-        {
-          name: '📥 Joined Server',
-          value: formatTimestamp(member?.joinedTimestamp),
-          inline: false
-        },
-        {
-          name: `🏷️ Roles${roleSuffix}`,
-          value: roles,
-          inline: false
-        },
-        {
-          name: '✨ Badges',
-          value: badges.length > 0 ? badges.join('\n') : 'None',
-          inline: false
-        }
-      )
-      .setFooter({
-        text: `Requested by ${interaction.user.tag}`
-      })
-      .setTimestamp();
+    const embed = createEmbed({
+      author: { name: target.tag, iconURL: target.displayAvatarURL() },
+      description: `### ${e('commands')} User Information\n` +
+                   `> **User ID:** \`${target.id}\`\n` +
+                   `> **Created:** ${formatTimestamp(target.createdTimestamp)}\n` +
+                   `> **Joined:** ${formatTimestamp(member?.joinedTimestamp)}\n` +
+                   `> **Badges:** ${badges.join(', ') || 'None'}\n\n` +
+                   `**Roles${roleSuffix}:**\n${roles}`,
+      thumbnail: target.displayAvatarURL({ size: 1024 }),
+      footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
+      timestamp: true
+    });
 
     return interaction.reply({ embeds: [embed] });
   }

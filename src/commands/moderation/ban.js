@@ -1,13 +1,8 @@
-/**
- * /ban — Ban a user from the server
- */
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-
-const ICY = { frost: 0x00d4ff, success: 0x00f5a0, error: 0xff3d71, lava: 0xff4d6d };
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e, errorEmbed } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'moderation',
-
   data: new SlashCommandBuilder()
     .setName('ban')
     .setDescription('Ban a user from the server')
@@ -19,29 +14,26 @@ module.exports = {
     const user = interaction.options.getUser('user');
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const days = interaction.options.getInteger('days') ?? 1;
-
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
     if (member && !member.bannable) {
       return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(ICY.error).setTitle('❌ Cannot Ban').setDescription(`Cannot ban **${user.tag}** — they may have a higher role or the bot lacks permissions.`).setFooter({ text: '✦ Icy Companion' }).setTimestamp()],
+        embeds: [errorEmbed(`Cannot ban **${user.tag}** — they may have a higher role or the bot lacks permissions.`)],
         ephemeral: true
       });
     }
 
-    // Try to DM the user before banning
     if (member) {
-      try {
-        await member.send({
-          embeds: [new EmbedBuilder()
-            .setColor(ICY.lava)
-            .setTitle(`🔨 You have been banned — ${interaction.guild.name}`)
-            .setDescription(`**Reason:** ${reason}\n\nIf you believe this was a mistake, contact the server staff.`)
-            .setFooter({ text: '✦ Icy Companion' })
-            .setTimestamp()
-          ]
-        }).catch(() => {});
-      } catch {}
+      const dmEmbed = createEmbed({
+        color: 0xff4d6d,
+        author: { name: 'Icy Companion', iconURL: interaction.client.user.displayAvatarURL() },
+        description: `### ${e('error')} Ban Notification\n` +
+                     `> **Server:** ${interaction.guild.name}\n` +
+                     `> **Reason:** ${reason}\n\n` +
+                     `*If you believe this was a mistake, contact the server staff.*`,
+        timestamp: true
+      });
+      await member.send({ embeds: [dmEmbed] }).catch(() => null);
     }
 
     try {
@@ -51,30 +43,23 @@ module.exports = {
       });
     } catch (err) {
       return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(ICY.error).setTitle('❌ Ban Failed').setDescription(`\`${err.message}\``).setFooter({ text: '✦ Icy Companion' }).setTimestamp()],
+        embeds: [errorEmbed(`Ban failed: \`${err.message}\``)],
         ephemeral: true
       });
     }
 
-    return interaction.reply({
-      embeds: [new EmbedBuilder()
-        .setColor(ICY.lava)
-        .setAuthor({ name: '✦ Icy Companion', iconURL: interaction.client.user?.displayAvatarURL?.() || undefined })
-        .setTitle('🔨 User Banned')
-        .setDescription([
-          '```',
-          `  ╭─ Ban`,
-          `  │  User   : ${user.tag}`,
-          `  │  ID     : ${user.id}`,
-          `  │  Reason : ${reason}`,
-          `  │  Msgs   : ${days} day(s) deleted`,
-          `  │  By     : ${interaction.user.tag}`,
-          `  ╰────────────────────────`,
-          '```',
-        ].join('\n'))
-        .setFooter({ text: '✦ Icy Companion — Moderation' })
-        .setTimestamp()
-      ]
+    const embed = createEmbed({
+      color: 0xff4d6d,
+      author: { name: 'User Banned', iconURL: user.displayAvatarURL() },
+      description: `### ${e('error')} Execution Details\n` +
+                   `> **Target:** ${user.tag} (\`${user.id}\`)\n` +
+                   `> **Reason:** ${reason}\n` +
+                   `> **Moderator:** ${interaction.user.tag}\n` +
+                   `> **History Cleared:** \`${days} day(s)\``,
+      footer: { text: 'Moderation Action Log' },
+      timestamp: true
     });
+
+    return interaction.reply({ embeds: [embed] });
   }
 };

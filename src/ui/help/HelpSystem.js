@@ -1,17 +1,17 @@
 /**
  * ═══════════════════════════════════════════════════════════════════
- *   ICY COMPANION — Futuristic Help System
- *   Neon cyberpunk-inspired help panels
+ *   ICY COMPANION — Sleek Help System
+ *   Clean Moonveil-inspired help panels
  * ═══════════════════════════════════════════════════════════════════
  */
 
 const {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder
 } = require('discord.js');
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 // ─── Icy Color Palette ─────────────────────────────────────────────
 const ICY = {
@@ -30,11 +30,6 @@ const ICY = {
   info:     0x00c8ff,
   brand:    0x00c8ff,
 };
-
-// ─── Constants ─────────────────────────────────────────────────────
-const GLOW = '═'.repeat(44);
-const THIN = '─'.repeat(44);
-const ACCENT = 0x00d4ff;
 
 // ─── Categories ────────────────────────────────────────────────────
 const HELP_CATEGORIES = [
@@ -154,7 +149,8 @@ const HELP_CATEGORIES = [
       { name: '/member-count', desc: 'View member statistics' },
       { name: '/avatar',       desc: 'View a user avatar' },
       { name: '/help',         desc: 'Open this help menu' },
-      { name: '/reload',       desc: 'Reload command files' }
+      { name: '/reload',       desc: 'Reload command files' },
+      { name: '/store-emoji',  desc: 'Store custom emojis (Owner)' }
     ]
   },
   {
@@ -220,84 +216,37 @@ function buildHomePage(client, guild) {
   const prefix = guildPrefix(guild);
   const totalCmds = HELP_CATEGORIES.slice(1).reduce((sum, c) => sum + (c.commands?.length || 0), 0);
 
-  const embed = new EmbedBuilder()
-    .setColor(ICY.frost)
-    .setAuthor({
-      name: '✦  I C Y   C O M P A N I O N',
-      iconURL: avatar || undefined,
-    })
-    .setTitle('❄️  WELCOME TO ICY COMPANION')
-    .setDescription([
-      '```',
-      '  ╔══════════════════════════════════════════════╗',
-      '  ║     ❄  Premium Discord Utility Bot  ❄      ║',
-      '  ║  Managing communities with precision ⚡     ║',
-      '  ╚══════════════════════════════════════════════╝',
-      '```',
-      '',
-      `> **${totalCmds}** commands across **${HELP_CATEGORIES.length - 1}** categories`,
-      '',
-      `  🔹 Bot Prefix  :  ${prefix}`,
-      `  🔹 Slash Cmds  :  All commands available as /`,
-      '',
-      '',
-      '━━━━━━━━━━━━━━━━━━ **CATEGORIES** ━━━━━━━━━━━━━━━━━━',
-      '',
-      ...HELP_CATEGORIES.slice(1).map(cat =>
-        `>  **${cat.emoji}  ${cat.label}**\n>  └  ${cat.description}`
-      ),
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '>  Navigate using the **buttons** or **dropdown menu** below.'
-    ].join('\n'))
-    .setFooter({
-      text: `Page 1/${HELP_CATEGORIES.length}  •  ${guild?.name || 'Direct Messages'}`
-    })
-    .setTimestamp();
-
-  if (avatar) embed.setThumbnail(avatar);
-  return embed;
+  return createEmbed({
+    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
+    description: `### ${e('rocket')} Welcome to Icy Companion\n` +
+                 `> **Managing communities with precision.**\n\n` +
+                 `**Stats Overview:**\n` +
+                 `> ${e('commands')} **${totalCmds}** Commands\n` +
+                 `> ${e('settings')} **${HELP_CATEGORIES.length - 1}** Categories\n` +
+                 `> ${e('file')} **Prefix:** \`${prefix}\`\n\n` +
+                 `**Categories:**\n` +
+                 HELP_CATEGORIES.slice(1).map(cat => `${cat.emoji} **${cat.label}** - ${cat.description}`).join('\n'),
+    footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'}` },
+    thumbnail: avatar,
+    color: ICY.frost
+  });
 }
 
 // ─── Category Page ─────────────────────────────────────────────────
 function buildCategoryPage(category, page, total, avatar) {
   const commands = category.commands || [];
 
-  const cmdBlocks = commands.map(cmd =>
-    `  ┌─ **${cmd.name}**\n  │  ${cmd.desc}\n  └────────────────────────`
-  );
+  const cmdList = commands.map(cmd => `**${cmd.name}**\n> ${cmd.desc}`).join('\n\n');
 
-  const embed = new EmbedBuilder()
-    .setColor(category.color || ICY.frost)
-    .setAuthor({
-      name: '✦  I C Y   C O M P A N I O N',
-      iconURL: avatar || undefined,
-    })
-    .setTitle(`${category.emoji}  ${category.label.toUpperCase()}  ✦`)
-    .setDescription([
-      '```',
-      `  ${category.description}`,
-      '```',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      cmdBlocks.length ? cmdBlocks.join('\n') : '  No commands in this category.',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      `  🔹 ${commands.length} command${commands.length !== 1 ? 's' : ''} in this category`,
-      `  🔹 Use / to access any command directly`,
-      '',
-      '>  Navigate using the **buttons** or **dropdown menu** below.'
-    ].join('\n'))
-    .setFooter({
-      text: `Page ${page + 1}/${total}  •  Use / for commands`
-    })
-    .setTimestamp();
-
-  if (avatar) embed.setThumbnail(avatar);
-  return embed;
+  return createEmbed({
+    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
+    description: `### ${category.emoji} ${category.label.toUpperCase()}\n` +
+                 `> ${category.description}\n\n` +
+                 (cmdList || '*No commands in this category.*'),
+    footer: { text: `Page ${page + 1}/${total} • Use / for commands` },
+    thumbnail: avatar,
+    color: category.color || ICY.frost
+  });
 }
 
 // ─── Build Embed ───────────────────────────────────────────────────
@@ -318,25 +267,11 @@ function buildHelpEmbed(index, client, guild) {
 function buildThinkingEmbed(client) {
   const avatar = botAvatar(client);
 
-  const embed = new EmbedBuilder()
-    .setColor(ICY.frost)
-    .setAuthor({
-      name: '✦  I C Y   C O M P A N I O N',
-      iconURL: avatar || undefined,
-    })
-    .setTitle('❄️  Loading...')
-    .setDescription([
-      '```',
-      '  ⏳  Fetching your command panel...',
-      '  ░░░░░░░░░░░░░░░░░░░░░░░░░',
-      '```',
-      '',
-      '>  Please hold, icy one. ❄️'
-    ].join('\n'))
-    .setTimestamp();
-
-  if (avatar) embed.setThumbnail(avatar);
-  return embed;
+  return createEmbed({
+    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
+    description: `${e('loading')} **Fetching your command panel...**`,
+    color: ICY.frost
+  });
 }
 
 // ─── Components ────────────────────────────────────────────────────

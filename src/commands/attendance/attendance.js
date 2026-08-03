@@ -1,9 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
-const {
-  getServerConfig,
-  saveServerConfig
-} = require('../../utils/configManager');
+const { getServerConfig, saveServerConfig } = require('../../utils/configManager');
 const { updateStreak } = require('../../utils/streakSystem');
+const { createEmbed, e } = require('../../utils/uiHelper');
 
 function todayKey(date = new Date()) {
   const now = date;
@@ -15,7 +13,6 @@ function todayKey(date = new Date()) {
 
 module.exports = {
   category: 'attendance',
-
   data: new SlashCommandBuilder()
     .setName('attendance')
     .setDescription('Mark your attendance'),
@@ -43,7 +40,7 @@ module.exports = {
 
     if (existingKey === today) {
       return interaction.reply({
-        content: '⚠️ You have already marked attendance today.',
+        content: `${e('error')} You have already marked attendance today.`,
         ephemeral: true
       });
     }
@@ -53,8 +50,16 @@ module.exports = {
 
     const streak = updateStreak(guildId, userId);
 
-    return interaction.reply({
-      content: `✅ Attendance marked successfully!\n🔥 Current streak: **${streak} day(s)**`
+    const embed = createEmbed({
+      description: `### ${e('success')} Attendance Recorded\n` +
+                   `> **User:** ${interaction.user.tag}\n` +
+                   `> **Status:** Confirmed\n` +
+                   `> **Streak:** \`${streak} day(s)\` 🔥\n\n` +
+                   `*Keep up the good work!*`,
+      color: 0x00f5a0,
+      timestamp: true
     });
+
+    return interaction.reply({ embeds: [embed] });
   }
 };
