@@ -201,7 +201,14 @@ function commandBadge(command, locked) {
 function commandRow(command, locked) {
   const { command: name, args } = usageParts(command);
   const suffix = args ? ` ${args}` : '';
-  return `${commandBadge(command, locked)} **${name}**${suffix}\n> ${command.desc}`;
+  const aliases = Array.isArray(command.aliases) && command.aliases.length
+    ? `\n> **Aliases:** ${command.aliases.slice(0, 5).map(alias => `\`${alias}\``).join(', ')}${command.aliases.length > 5 ? '…' : ''}`
+    : '';
+  const example = command.name === 'massdm'
+    ? '\n> **Try:** `@bot massdm #1 --dry-run --limit 10 Hello!`'
+    : '';
+
+  return `${commandBadge(command, locked)} **${name}**${suffix}\n> ${command.desc}${aliases}${example}`;
 }
 
 // ─── Embed pages ───────────────────────────────────────────────────

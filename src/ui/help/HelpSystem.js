@@ -114,10 +114,33 @@ const HELP_CATEGORIES = [
     color: ICY.amber,
     description: 'Manage bot owners for this server.',
     commands: [
-      { name: '/owner-list',           desc: 'View the primary and server owners' },
-      { name: '/add-owner',            desc: 'Add a server bot owner' },
-      { name: '/remove-owner',         desc: 'Remove a server bot owner' },
+      { name: '/owner-list',           desc: 'View the primary and server owners', aliases: ['/owner'] },
+      { name: '/add-owner',            desc: 'Add a server bot owner', aliases: ['/add-extra-owner'] },
+      { name: '/remove-owner',         desc: 'Remove a server bot owner', aliases: ['/remove-extra-owner'] },
       { name: '/transfer-ownership',   desc: 'Transfer primary server ownership' }
+    ]
+  },
+  {
+    id: 'dm-control',
+    label: 'Owner DM',
+    emoji: '📨',
+    color: ICY.orange,
+    description: 'Owner-only @bot commands used in DMs or by mentioning the bot.',
+    examples: [
+      '`@bot massdm #1 --dry-run --limit 10 Hello team!`',
+      '`@bot massdm #1 --plain --delay 1500 Hello everyone!`',
+      '`@bot theme test #00D4FF #FB8500 #38BDF8`',
+      '`@bot dm whitelist list`'
+    ],
+    commands: [
+      { name: '@bot massdm', desc: 'Mass DM members in one server with progress + rate delay', aliases: ['mass dm', 'dm all', 'dmall', 'mass-dm'], example: '@bot massdm #1 --embed --title "Update" Hello!' },
+      { name: '@bot broadcast', desc: 'Post an announcement to a sendable channel in every server', aliases: ['bc'], example: '@bot broadcast Maintenance starts soon.' },
+      { name: '@bot announce', desc: 'Post an announcement in a specific channel', example: '@bot announce #1 123456789012345678 Hello!' },
+      { name: '@bot dm', desc: 'Send a plain direct message to one user', example: '@bot dm 773827814267813928 hello' },
+      { name: '@bot theme', desc: 'Show/apply/test/save custom UI themes', aliases: ['themes', 'theme presets', 'set theme', 'theme preview'], example: '@bot theme save orange-sky #00D4FF #FB8500 #38BDF8' },
+      { name: '@bot dm mode whitelist', desc: 'Only relay/log whitelisted DM users', aliases: ['dm access whitelist', 'dm whitelist mode'] },
+      { name: '@bot dm whitelist add', desc: 'Grant a user DM whitelist access', aliases: ['dm allow add', 'dm access add'] },
+      { name: '@bot serverowner add', desc: 'Add a server bot owner from DMs', aliases: ['addserverowner', 'server-owner-add'] }
     ]
   },
   {
@@ -129,10 +152,10 @@ const HELP_CATEGORIES = [
     commands: [
       { name: '/ping',         desc: 'Check bot latency' },
       { name: '/uptime',       desc: 'View bot uptime' },
-      { name: '/server-info',  desc: 'View server information' },
-      { name: '/bot-info',     desc: 'View bot information' },
-      { name: '/user-info',    desc: 'View user information' },
-      { name: '/member-count', desc: 'View member statistics' },
+      { name: '/server-info',  desc: 'View server information', aliases: ['/serverinfo'] },
+      { name: '/bot-info',     desc: 'View bot information', aliases: ['/botinfo'] },
+      { name: '/user-info',    desc: 'View user information', aliases: ['/userinfo'] },
+      { name: '/member-count', desc: 'View member statistics', aliases: ['/membercount'] },
       { name: '/avatar',         desc: 'View a user avatar or PFP' },
       { name: '/pfp',             desc: 'View a user profile picture' },
       { name: '/banner',          desc: 'View a user profile banner' },
@@ -201,59 +224,110 @@ function guildPrefix(guild) {
   }
 }
 
+function formatAliasList(aliases = []) {
+  return aliases.length ? `\n> **Aliases:** ${aliases.map(alias => `\`${alias}\``).join(', ')}` : '';
+}
+
+function formatExample(example) {
+  return example ? `\n> **Example:** \`${example}\`` : '';
+}
+
+function commandRow(command) {
+  return [
+    `**${command.name}** — ${command.desc}`,
+    formatAliasList(command.aliases),
+    formatExample(command.example)
+  ].filter(Boolean).join('');
+}
+
+function chunkRows(rows, limit = 900) {
+  const chunks = [];
+  let current = '';
+
+  for (const row of rows) {
+    const next = current ? `${current}\n\n${row}` : row;
+    if (next.length > limit && current) {
+      chunks.push(current);
+      current = row;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : ['_No commands in this category yet._'];
+}
+
 // ─── Home Page ─────────────────────────────────────────────────────
 function buildHomePage(client, guild) {
   const avatar = botAvatar(client);
   const prefix = guildPrefix(guild);
   const totalCmds = HELP_CATEGORIES.slice(1).reduce((sum, c) => sum + (c.commands?.length || 0), 0);
-  const categoryFields = HELP_CATEGORIES.slice(1).map(category => ({
-    name: `${category.emoji} ${category.label}`,
-    value: `${category.description}\n\`${category.commands?.length || 0} commands\``,
-    inline: true
+  const categories = HELP_CATEGORIES.slice(1);
+  const quickStart = [
+    `**Public help:** \`/help\``,
+    `**Bot mention:** \`@bot\``,
+    `**Owner controls:** DM me \`@bot help\``,
+    `**Mass DM test:** \`@bot massdm #1 --dry-run --limit 10 Hello!\``
+  ].join('\n');
+
+  const categoryFields = chunkRows(
+    categories.map(category => `${category.emoji} **${category.label}** — ${category.description}  \`${category.commands?.length || 0}\``),
+    950
+  ).map((chunk, index) => ({
+    name: index === 0 ? 'Pick a lane' : 'More lanes',
+    value: chunk,
+    inline: false
   }));
 
   return createEmbed({
-    author: { name: '🌅 ICY COMPANION • SUNSET ICE', iconURL: avatar || undefined },
-    title: `${e('rocket') || '🚀'} Sunset Ice Command Center`,
+    author: { name: '🌅 ICY COMPANION • EASY HELP', iconURL: avatar || undefined },
+    title: `${e('rocket') || '🚀'} Help, but chill`,
     description: [
-      '**A cleaner, faster control panel for your community.**',
+      '**No war manual. Just pick a category from the dropdown.**',
       '',
-      `> ${e('commands')} **${totalCmds}** commands loaded`,
-      `> ${e('settings')} **${HELP_CATEGORIES.length - 1}** command categories`,
-      `> ${e('file')} Server prefix: \`${prefix}\``,
+      `> ${e('commands')} **${totalCmds}** commands • ${e('settings')} **${HELP_CATEGORIES.length - 1}** sections • Prefix \`${prefix}\``,
       '',
-      'Pick a category below or use the dropdown to jump instantly.'
+      quickStart
     ].join('\n'),
     fields: categoryFields,
-    footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'}` },
+    footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'} • Dropdown below` },
     thumbnail: avatar,
-    color: ICY.frost
+    color: ICY.frost,
+    compact: true
   });
 }
 
 // ─── Category Page ─────────────────────────────────────────────────
 function buildCategoryPage(category, page, total, avatar) {
   const commands = category.commands || [];
-  const commandFields = commands.length
-    ? commands.slice(0, 25).map(cmd => ({
-      name: cmd.name,
-      value: cmd.desc,
+  const rows = commands.map(commandRow);
+  const commandFields = chunkRows(rows, 930).slice(0, 20).map((chunk, index) => ({
+    name: index === 0 ? 'Commands' : 'More commands',
+    value: chunk,
+    inline: false
+  }));
+
+  if (Array.isArray(category.examples) && category.examples.length) {
+    commandFields.push({
+      name: 'Copy-paste examples',
+      value: category.examples.map(example => `> ${example}`).join('\n'),
       inline: false
-    }))
-    : [{ name: 'No commands', value: 'This category is empty for now.', inline: false }];
+    });
+  }
 
   return createEmbed({
-    author: { name: '🌅 ICY COMPANION • SUNSET ICE', iconURL: avatar || undefined },
-    title: `${category.emoji} ${category.label} Commands`,
+    author: { name: '🌅 ICY COMPANION • EASY HELP', iconURL: avatar || undefined },
+    title: `${category.emoji} ${category.label}`,
     description: [
       `**${category.description}**`,
-      '',
-      `> Showing **${commands.length}** command${commands.length === 1 ? '' : 's'} in this category.`
+      `> ${commands.length} command${commands.length === 1 ? '' : 's'} shown with aliases/examples where useful.`
     ].join('\n'),
     fields: commandFields,
-    footer: { text: `Page ${page + 1}/${total} • Use / for commands` },
+    footer: { text: `Page ${page + 1}/${total} • Use dropdown/buttons • Owner DM tools use @bot` },
     thumbnail: avatar,
-    color: category.color || ICY.frost
+    color: category.color || ICY.frost,
+    compact: true
   });
 }
 
