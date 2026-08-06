@@ -1,15 +1,13 @@
 const { SlashCommandBuilder } = require('discord.js');
-const {
-  getServerConfig,
-  saveServerConfig
-} = require('../../utils/configManager');
+const { saveServerConfig } = require('../../utils/configManager');
+const { guard } = require('../../utils/guildAuth');
 
 module.exports = {
   category: 'owner',
 
   data: new SlashCommandBuilder()
     .setName('remove-owner')
-    .setDescription('Remove an extra bot owner')
+    .setDescription('Remove a server bot owner')
     .addUserOption(option =>
       option
         .setName('user')
@@ -18,23 +16,10 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!interaction.guild) {
-      return interaction.reply({
-        content: '❌ This command can only be used in a server.',
-        ephemeral: true
-      });
-    }
+    const { ok, config } = await guard(interaction, 'owner');
+    if (!ok) return;
 
-    const config = getServerConfig(interaction.guild.id);
     const primaryOwner = config.owner || interaction.guild.ownerId;
-
-    if (interaction.user.id !== primaryOwner && interaction.user.id !== interaction.guild.ownerId) {
-      return interaction.reply({
-        content: '❌ Owner only.',
-        ephemeral: true
-      });
-    }
-
     const user = interaction.options.getUser('user');
 
     if (!user) {
@@ -44,12 +29,19 @@ module.exports = {
       });
     }
 
+    if (user.id === primaryOwner || user.id === interaction.guild.ownerId) {
+      return interaction.reply({
+        content: '❌ The primary/server owner cannot be removed with this command. Use `/transfer-ownership` first.',
+        ephemeral: true
+      });
+    }
+
     config.owner = primaryOwner;
     config.extraOwners = Array.isArray(config.extraOwners) ? config.extraOwners : [];
 
     if (!config.extraOwners.includes(user.id)) {
       return interaction.reply({
-        content: '⚠️ That user is not an extra owner.',
+        content: '⚠️ That user is not a server owner.',
         ephemeral: true
       });
     }
@@ -58,7 +50,7 @@ module.exports = {
     saveServerConfig(interaction.guild.id, config);
 
     return interaction.reply({
-      content: `✅ Removed extra owner: **${user.tag}**`
+      content: `✅ Removed server owner: **${user.tag}**`
     });
   }
 };

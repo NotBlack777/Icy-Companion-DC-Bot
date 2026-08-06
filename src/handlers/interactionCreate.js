@@ -2,6 +2,10 @@ const { Events, MessageFlags } = require('discord.js');
 const { getServerConfig } = require('../utils/configManager');
 const { canUseCommand } = require('../utils/permissions');
 const { isSuperOwner } = require('../utils/globalStore');
+const { isGuildOwner } = require('../utils/guildAuth');
+const { getMaintenanceBlock, maintenanceEmbed } = require('../utils/maintenance');
+const { checkRateLimit, formatRemaining } = require('../utils/cooldown');
+const { runWithThemeContext } = require('../utils/themeManager');
 const safeRun = require('../utils/safeRunner');
 const { safeUpdate, safeReply } = require('../utils/interactionResponder');
 
@@ -129,7 +133,9 @@ module.exports = {
             return;
         }
 
-        return renderHelpPage(interaction, activeClient, page);
+        return runWithThemeContext(interaction.guild?.id, () =>
+            renderHelpPage(interaction, activeClient, page)
+          );
       }
 
       /* ---------------- SELECT MENUS ---------------- */
@@ -145,7 +151,9 @@ module.exports = {
         // Current server help menu.
         if (interaction.customId === 'help_select') {
           const page = clampPage(Number(interaction.values[0]));
-          return renderHelpPage(interaction, activeClient, page);
+          return runWithThemeContext(interaction.guild?.id, () =>
+            renderHelpPage(interaction, activeClient, page)
+          );
         }
 
         // Backwards compatibility for old help messages that used help-menu.
@@ -153,7 +161,9 @@ module.exports = {
           const requested = interaction.values[0];
           const page = Math.max(0, HELP_CATEGORIES.findIndex(category => category.id === requested));
 
-          return renderHelpPage(interaction, activeClient, page);
+          return runWithThemeContext(interaction.guild?.id, () =>
+            renderHelpPage(interaction, activeClient, page)
+          );
         }
 
         return;
@@ -197,7 +207,31 @@ module.exports = {
         });
       }
 
-      return safeRun(command, interaction, activeClient, config);
+      const maintenanceBlock = getMaintenanceBlock(config, command, interaction.commandName);
+      if (maintenanceBlock) {
+        return safeReply(interaction, {
+          embeds: [maintenanceEmbed(maintenanceBlock)],
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      const ownerBypass = isGuildOwner(config, interaction);
+      const rateLimit = config.rateLimit || { enabled: false, durationMs: 0 };
+      if (!ownerBypass && rateLimit.enabled && Number(rateLimit.durationMs) > 0) {
+        const key = `${interaction.guild.id}:${interaction.user.id}:${interaction.commandName.toLowerCase()}`;
+        const check = checkRateLimit(key, Number(rateLimit.durationMs));
+
+        if (!check.allowed) {
+          return safeReply(interaction, {
+            content: `⏳ Slow down — try \`/${interaction.commandName}\` again in **${formatRemaining(check.remainingMs)}**.`,
+            flags: MessageFlags.Ephemeral
+          });
+        }
+      }
+
+      return runWithThemeContext(interaction.guild.id, () =>
+        safeRun(command, interaction, activeClient, config)
+      );
     } catch (err) {
       console.error('[INTERACTION ERROR]', err);
 

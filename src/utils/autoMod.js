@@ -40,26 +40,34 @@ async function handleAutoMod(message) {
   let triggered = false;
   let reason = '';
 
-  if (autoMod.linkFilter && URL_RE.test(content)) {
-    triggered = true;
-    reason = 'Links are not allowed';
-  } else if (autoMod.inviteFilter && INVITE_RE.test(content)) {
+  if (autoMod.inviteFilter && INVITE_RE.test(content)) {
     triggered = true;
     reason = 'Invite links are not allowed';
-  } else if (autoMod.capsFilter && content.length >= 10) {
+  }
+
+  if (!triggered && autoMod.linkFilter && URL_RE.test(content)) {
+    triggered = true;
+    reason = 'Links are not allowed';
+  }
+
+  if (!triggered && autoMod.capsFilter && content.length >= 10) {
     const alpha = content.replace(/[^a-zA-Z]/g, '');
     if (alpha.length >= 10 && alpha === alpha.toUpperCase()) {
       triggered = true;
       reason = 'Excessive caps';
     }
-  } else if (autoMod.mentionSpam) {
+  }
+
+  if (!triggered && autoMod.mentionSpam) {
     const threshold = autoMod.mentionSpamThreshold || 5;
     const totalMentions = message.mentions.users.size + message.mentions.roles.size;
     if (totalMentions >= threshold || message.mentions.everyone) {
       triggered = true;
       reason = `Mention spam (${totalMentions} mentions)`;
     }
-  } else if (autoMod.wordFilter && Array.isArray(autoMod.filteredWords)) {
+  }
+
+  if (!triggered && autoMod.wordFilter && Array.isArray(autoMod.filteredWords)) {
     const lower = content.toLowerCase();
     for (const word of autoMod.filteredWords) {
       if (word && lower.includes(word.toLowerCase())) {
@@ -68,7 +76,9 @@ async function handleAutoMod(message) {
         break;
       }
     }
-  } else if (autoMod.spamFilter) {
+  }
+
+  if (!triggered && autoMod.spamFilter) {
     const key = `${message.guild.id}-${message.author.id}`;
     const msgs = recentMessages.get(key) || [];
     msgs.push({ content: content.slice(0, 100), timestamp: Date.now() });

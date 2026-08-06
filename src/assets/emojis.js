@@ -18,6 +18,14 @@ module.exports = {
   error: '❌',
   commands: '📚',
   info: 'ℹ️',
+  ping: '📶',
+  ram: '📊',
+  guilds: '🏠',
+  users: '👥',
+  uptime: '⏱️',
+  library: '🔱',
+  os: '💠',
+  shard: '🔮',
 
   // Help/navigation keys. These are Unicode until custom versions are stored.
   delete: '🗑️',

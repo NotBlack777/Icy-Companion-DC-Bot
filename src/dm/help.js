@@ -136,7 +136,7 @@ function groupDescription(group) {
     info: 'Servers, status, configuration and quick lookups.',
     delete: 'Remove messages cleanly from servers or DMs.',
     broadcast: 'Send announcements and messages from one place.',
-    management: 'Manage servers, owners and attendance settings.',
+    management: 'Manage servers, owners, attendance settings and UI themes.',
     reports: 'Attendance reminders and useful reports.',
     staff: 'Add, remove and review staff across your servers.',
     dmlogger: 'Control where incoming DMs are logged.',
@@ -201,7 +201,14 @@ function commandBadge(command, locked) {
 function commandRow(command, locked) {
   const { command: name, args } = usageParts(command);
   const suffix = args ? ` ${args}` : '';
-  return `${commandBadge(command, locked)} **${name}**${suffix}\n> ${command.desc}`;
+  const aliases = Array.isArray(command.aliases) && command.aliases.length
+    ? `\n> **Aliases:** ${command.aliases.slice(0, 5).map(alias => `\`${alias}\``).join(', ')}${command.aliases.length > 5 ? '…' : ''}`
+    : '';
+  const example = command.name === 'massdm'
+    ? '\n> **Try:** `@bot massdm #1 --dry-run --limit 10 Hello!`'
+    : '';
+
+  return `${commandBadge(command, locked)} **${name}**${suffix}\n> ${command.desc}${aliases}${example}`;
 }
 
 // ─── Embed pages ───────────────────────────────────────────────────
@@ -209,9 +216,10 @@ function embedBase(ctx, color) {
   const embed = new EmbedBuilder()
     .setColor(color)
     .setAuthor({
-      name: 'ICY COMPANION',
+      name: '🌅 Icy Companion • DM Command Matrix',
       iconURL: avatarUrl(ctx)
-    });
+    })
+    .setTimestamp();
 
   const avatar = avatarUrl(ctx);
   if (avatar) embed.setThumbnail(avatar);
@@ -237,24 +245,24 @@ function buildHomePage(ctx, categories, page) {
 
   return embedBase(ctx, locked ? ICY.lava : ICY.frost)
     .setDescription([
-      `### ${icon('ice', '❄️')} DM Command Hub`,
-      '> A calm little control room for your servers.',
-      '',
+      `### 🌅 ${icon('ice', '🧊')} Sunset Ice DM Hub`,
+      '> Owner controls with the orange-sky × icy-blue Icy Companion accent.',
+      ui.DIVIDER,
       `${badge} **${tierLabel(ctx.user.id)}**`,
       `> ${statusIcon} ${status}`,
       '',
       `${icon('chart', '📊')} **At a glance**`,
       `> ${ice} **${total}** command${total === 1 ? '' : 's'}  •  ${icon('folder', '🗂️')} **${groups.length}** section${groups.length === 1 ? '' : 's'}`,
       '',
-      `${icon('compass', '🧭')} **Pick a section below**`,
+      `${icon('compass', '🧭')} **Command Sections**`,
       ...categoryLines,
-      '',
+      ui.THIN_DIV,
       `${icon('bulb', '💡')} **Quick tips**`,
       '> Use `#1` for a server config number, or paste the full server ID.',
       '> Use `@bot <command>` here; slash access is kept off this bot by default.',
-      locked ? `> Unlock with \`@bot unlock <password>\` or a TOTP code.` : `> Keep it chill — choose a section and tap ${home} around.`
+      locked ? `> Unlock with \`@bot unlock <password>\` or a TOTP code.` : `> Choose a section below and tap ${home} to return here.`
     ].join('\n'))
-    .setFooter({ text: `Page ${page + 1}/${categories.length} • ${total} commands • DM control room` });
+    .setFooter({ text: `Page ${page + 1}/${categories.length} • ${total} commands • Sunset Ice DM control` });
 }
 
 function buildCategoryPage(ctx, category, categories, page) {
@@ -266,17 +274,17 @@ function buildCategoryPage(ctx, category, categories, page) {
 
   return embedBase(ctx, category.color || ICY.frost)
     .setDescription([
-      `### ${category.emoji} ${category.label}`,
+      `### ${category.emoji} ${category.label} Matrix`,
       `> ${category.description}`,
-      '',
+      ui.DIVIDER,
       `**${category.commands.length} command${category.commands.length === 1 ? '' : 's'}**  ${state}`,
       '',
       rows.length ? rows.join('\n\n') : `${icon('sleep', '💤')} Nothing is available in this section yet.`,
-      '',
+      ui.THIN_DIV,
       `${icon('chat', '💬')} Use the exact format shown above. Tap ${icon('home', '🏠')} for the overview.`
     ].join('\n'))
     .setFooter({
-      text: `Page ${page + 1}/${categories.length} • ${category.commands.length} commands • Choose another section below`
+      text: `Page ${page + 1}/${categories.length} • ${category.commands.length} commands • Sunset Ice DM matrix`
     });
 }
 

@@ -1,8 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const {
-  getServerConfig,
-  saveServerConfig
-} = require('../../utils/configManager');
+const { saveServerConfig } = require('../../utils/configManager');
+const { guard } = require('../../utils/guildAuth');
 
 function getPrimaryOwner(config, guild) {
   return config.owner || guild.ownerId;
@@ -13,7 +11,7 @@ module.exports = {
 
   data: new SlashCommandBuilder()
     .setName('add-owner')
-    .setDescription('Add an extra bot owner')
+    .setDescription('Add a server bot owner')
     .addUserOption(option =>
       option
         .setName('user')
@@ -22,23 +20,10 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!interaction.guild) {
-      return interaction.reply({
-        content: '❌ This command can only be used in a server.',
-        ephemeral: true
-      });
-    }
+    const { ok, config } = await guard(interaction, 'owner');
+    if (!ok) return;
 
-    const config = getServerConfig(interaction.guild.id);
     const primaryOwner = getPrimaryOwner(config, interaction.guild);
-
-    if (interaction.user.id !== primaryOwner && interaction.user.id !== interaction.guild.ownerId) {
-      return interaction.reply({
-        content: '❌ Owner only.',
-        ephemeral: true
-      });
-    }
-
     const user = interaction.options.getUser('user');
 
     if (!user) {
@@ -48,9 +33,9 @@ module.exports = {
       });
     }
 
-    if (user.id === primaryOwner) {
+    if (user.id === primaryOwner || user.id === interaction.guild.ownerId) {
       return interaction.reply({
-        content: '⚠️ That user is already the primary owner.',
+        content: '⚠️ That user is already the primary/server owner.',
         ephemeral: true
       });
     }
@@ -60,7 +45,7 @@ module.exports = {
 
     if (config.extraOwners.includes(user.id)) {
       return interaction.reply({
-        content: '❌ User is already an extra owner.',
+        content: '❌ User is already a server owner.',
         ephemeral: true
       });
     }
@@ -69,7 +54,7 @@ module.exports = {
     saveServerConfig(interaction.guild.id, config);
 
     return interaction.reply({
-      content: `👑 Added extra owner: **${user.tag}**`
+      content: `👑 Added server owner: **${user.tag}**`
     });
   }
 };

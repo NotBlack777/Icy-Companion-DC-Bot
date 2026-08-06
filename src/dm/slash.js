@@ -21,6 +21,7 @@ const {
 const registry = require('./registry');
 const executor = require('./executor');
 const loadDmCommands = require('./loadCommands');
+const ui = require('./ui');
 const { safeDefer, safeEdit } = require('../utils/interactionResponder');
 
 /**
@@ -40,6 +41,12 @@ const SLASH_NAME_OVERRIDES = {
   'turn on otjoin mode': 'otjoin-on',
   'turn off otjoin mode': 'otjoin-off',
   'force restart': 'force-restart',
+  'theme status': 'theme',
+  addsuperowner: 'add-super-owner',
+  removesuperowner: 'remove-super-owner',
+  'serverowner add': 'server-owner-add',
+  'serverowner remove': 'server-owner-remove',
+  'serverowner list': 'server-owner-list',
 
   // These names already exist as guild commands - prefix to avoid a clash.
   help: 'dm-help',
@@ -124,6 +131,10 @@ function buildSlashCommand(command) {
 
       // Long-running commands (broadcast, remind, find) need a defer.
       await safeDefer(interaction, { ephemeral: true });
+      await safeEdit(interaction, {
+        embeds: [ui.loading('Executing command...')],
+        flags: MessageFlags.Ephemeral
+      });
 
       const ctx = {
         client: client || interaction.client,

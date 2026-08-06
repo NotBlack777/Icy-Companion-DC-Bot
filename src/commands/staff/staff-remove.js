@@ -2,7 +2,7 @@
  * /staff-remove — Remove a user from one or all staff roles
  */
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getServerConfig, saveServerConfig } = require('../../utils/configManager');
+const { guard } = require('../../utils/guildAuth');
 
 const ICY = { frost: 0x00d4ff, success: 0x00f5a0, error: 0xff3d71, warn: 0xffaa00 };
 
@@ -16,9 +16,11 @@ module.exports = {
     .addRoleOption(opt => opt.setName('role').setDescription('Specific staff role to remove (optional, defaults to all)').setRequired(false)),
 
   async execute(interaction) {
+    const { ok, config } = await guard(interaction, 'owner');
+    if (!ok) return;
+
     const target = interaction.options.getUser('user');
     const specificRole = interaction.options.getRole('role');
-    const config = getServerConfig(interaction.guild.id);
 
     const staffRoles = Array.isArray(config.staffRoles) && config.staffRoles.length
       ? config.staffRoles

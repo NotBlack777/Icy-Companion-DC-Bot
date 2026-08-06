@@ -88,7 +88,28 @@ function createDefaultConfig(guildId) {
     virtualStaff: [],
 
     // Warning auto-actions: [{ threshold: 3, action: 'timeout', timeoutMs: 600000 }]
-    warnActions: []
+    warnActions: [],
+
+    // Per-server UI theme override. Null preset means use global theme.
+    theme: {
+      preset: null,
+      custom: null,
+      saved: {}
+    },
+
+    // Command maintenance controls.
+    // disabledModules: category -> { note, by, at }
+    // disabledCommands: commandName -> { note, by, at }
+    maintenance: {
+      disabledModules: {},
+      disabledCommands: {}
+    },
+
+    // Per-user command rate limit for regular server slash commands.
+    rateLimit: {
+      enabled: true,
+      durationMs: 3000
+    }
   };
 }
 
@@ -131,6 +152,41 @@ function normalizeConfig(guildId, data = {}) {
     ...defaultColors,
     ...(data.embedColors && typeof data.embedColors === 'object' ? data.embedColors : {})
   };
+
+  // Normalize per-server theme override
+  const defaultTheme = createDefaultConfig(guildId).theme;
+  config.theme = {
+    ...defaultTheme,
+    ...(data.theme && typeof data.theme === 'object' ? data.theme : {})
+  };
+  config.theme.saved = config.theme.saved && typeof config.theme.saved === 'object' && !Array.isArray(config.theme.saved)
+    ? config.theme.saved
+    : {};
+
+  // Normalize command maintenance controls
+  const defaultMaintenance = createDefaultConfig(guildId).maintenance;
+  config.maintenance = {
+    ...defaultMaintenance,
+    ...(data.maintenance && typeof data.maintenance === 'object' ? data.maintenance : {})
+  };
+  config.maintenance.disabledModules = config.maintenance.disabledModules && typeof config.maintenance.disabledModules === 'object' && !Array.isArray(config.maintenance.disabledModules)
+    ? config.maintenance.disabledModules
+    : {};
+  config.maintenance.disabledCommands = config.maintenance.disabledCommands && typeof config.maintenance.disabledCommands === 'object' && !Array.isArray(config.maintenance.disabledCommands)
+    ? config.maintenance.disabledCommands
+    : {};
+
+  // Normalize command rate limit controls
+  const defaultRateLimit = createDefaultConfig(guildId).rateLimit;
+  config.rateLimit = {
+    ...defaultRateLimit,
+    ...(data.rateLimit && typeof data.rateLimit === 'object' ? data.rateLimit : {})
+  };
+  config.rateLimit.enabled = Boolean(config.rateLimit.enabled);
+  config.rateLimit.durationMs = Math.min(
+    Math.max(Number(config.rateLimit.durationMs) || defaultRateLimit.durationMs, 0),
+    24 * 60 * 60 * 1000
+  );
 
   // Attendance used to be stored either as { users: { userId: day } }
   // or as a flat object. Normalize both formats to the supported shape.

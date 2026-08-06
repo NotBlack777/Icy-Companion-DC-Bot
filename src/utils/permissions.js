@@ -2,7 +2,7 @@
  * Permissions utility for server commands.
  *
  * Hierarchy:
- *   Super Owner (SUPER_OWNER_ID) → bypasses ALL restrictions in ANY server
+ *   Super Owner / global owners → bypass ALL restrictions in ANY server
  *   Server Owner                 → always allowed
  *   Bot Owner (per-server)      → allowed
  *   Extra Owners (per-server)   → allowed
@@ -60,9 +60,9 @@ function canUseCommand(config = {}, interaction) {
   const channelId = interaction.channel?.id;
   const member    = interaction.member;
 
-  // ─── Super Owner: bypass everything ────────────────────────────────
-  if (globalStore.isSuperOwner(userId)) {
-    // Super owner can use any command in any server.
+  // ─── Global bot owners: bypass everything ─────────────────────────
+  if (globalStore.isGlobalOwner(userId)) {
+    // Super Owners and global owners can use any command in any server.
     // No other checks needed — they bypass role/channel ignores too.
     return true;
   }

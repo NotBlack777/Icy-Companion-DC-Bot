@@ -1,9 +1,29 @@
 /**
  * /role-info — View detailed info about a role
  */
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e, COLORS, BRAND } = require('../../utils/uiHelper');
+const {
+  getDisplayRolePosition,
+  formatRolePosition,
+  roleHexColor
+} = require('../../utils/rolePosition');
 
-const ICY = { frost: 0x00d4ff, glacier: 0x0096c7, violet: 0x9b5de5, neon: 0x7df9ff, amber: 0xffd60a, success: 0x00f5a0, error: 0xff3d71 };
+const NOTABLE_PERMISSIONS = [
+  'Administrator',
+  'ManageGuild',
+  'ManageRoles',
+  'ManageChannels',
+  'ManageMessages',
+  'KickMembers',
+  'BanMembers',
+  'ModerateMembers',
+  'MentionEveryone'
+];
+
+function formatPermissionName(name) {
+  return name.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
 
 module.exports = {
   category: 'moderation',
@@ -15,38 +35,62 @@ module.exports = {
 
   async execute(interaction) {
     const role = interaction.options.getRole('role');
-
     const perms = role.permissions.toArray();
-    const hasManage = perms.includes('ManageChannels') || perms.includes('Administrator');
-    const highlight = ['Administrator','ManageChannels','ManageMessages','KickMembers','BanMembers','ManageRoles'].filter(p => perms.includes(p));
+    const notable = NOTABLE_PERMISSIONS.filter(permission => perms.includes(permission));
+    const hierarchy = getDisplayRolePosition(interaction.guild, role);
+    const roleIcon = role.iconURL?.({ size: 256 }) || null;
+    const roleMention = role.id === interaction.guild.id ? '@everyone' : `<@&${role.id}>`;
 
-    const embed = new EmbedBuilder()
-      .setColor(role.color || ICY.frost)
-      .setAuthor({ name: '✦ Icy Companion', iconURL: interaction.client.user?.displayAvatarURL?.() || undefined })
-      .setTitle(`${role.name}`)
-      .setDescription([
-        '```',
-        `  ╭─ Role Info`,
-        `  │  Name      : ${role.name}`,
-        `  │  ID        : ${role.id}`,
-        `  │  Color     : ${role.color ? `#${role.color.toString(16).toUpperCase().padStart(6,'0')}` : 'default'}`,
-        `  │  Hoisted   : ${role.hoist ? '✅ Yes' : '❌ No'}`,
-        `  │  Mentionable: ${role.mentionable ? '✅ Yes' : '❌ No'}`,
-        `  │  Position  : ${role.position} / ${interaction.guild.roles.cache.size}`,
-        `  ╰────────────────────────`,
-        '```',
+    const embed = createEmbed({
+      author: {
+        name: `${interaction.guild.name} • Role Matrix`,
+        iconURL: interaction.guild.iconURL?.() || interaction.client.user?.displayAvatarURL?.() || undefined
+      },
+      title: `${e('shard')} Role Status: ${role.name}`,
+      description: [
+        `${e('security')} **Identity:** ${roleMention}`,
+        `${e('premium')} **Hierarchy Position:** \`${formatRolePosition(hierarchy)}\``,
+        `${e('ice')} **Top means #1** — higher roles are counted from the top, not Discord's raw bottom-up number.`,
         '',
-        highlight.length
-          ? `**⚠️ Notable Permissions:** ${highlight.map(p => `\`${p}\``).join(', ')}`
-          : `**ℹ️ Permissions:** ${perms.length ? perms.slice(0,10).join(', ') + (perms.length > 10 ? ` +${perms.length-10}` : '') : 'none'}`,
-        '',
-        `**👥 Members:** ${role.members.size}`,
-        `**📅 Created:** <t:${Math.floor(role.createdAt.getTime()/1000)}:D>`,
-      ].join('\n'))
-      .setFooter({ text: '✦ Icy Companion — Role Info' })
-      .setTimestamp();
-
-    if (role.iconURL()) embed.setThumbnail(role.iconURL());
+        `${e('settings')} **Color:** \`${roleHexColor(role)}\``,
+        `${e('staff')} **Members:** \`${role.members.size}\``,
+        `${e('commands')} **Permissions:** \`${perms.length}\` total`,
+        `${e('uptime')} **Created:** <t:${Math.floor(role.createdAt.getTime() / 1000)}:D>`
+      ].join('\n'),
+      fields: [
+        {
+          name: 'Hierarchy',
+          value: [
+            `**Position:** \`${hierarchy.position || '?'}\``,
+            `**Total roles:** \`${hierarchy.total}\``,
+            `**Above:** ${hierarchy.above ? `<@&${hierarchy.above.id}>` : '`None`'}`,
+            `**Below:** ${hierarchy.below ? `<@&${hierarchy.below.id}>` : '`None`'}`
+          ].join('\n'),
+          inline: true
+        },
+        {
+          name: 'Toggles',
+          value: [
+            `**Hoisted:** ${role.hoist ? '`Yes`' : '`No`'}`,
+            `**Mentionable:** ${role.mentionable ? '`Yes`' : '`No`'}`,
+            `**Managed:** ${role.managed ? '`Yes`' : '`No`'}`,
+            `**Unicode Icon:** ${role.unicodeEmoji ? role.unicodeEmoji : '`None`'}`
+          ].join('\n'),
+          inline: true
+        },
+        {
+          name: notable.length ? 'Notable Permissions' : 'Permissions',
+          value: notable.length
+            ? notable.map(permission => `\`${formatPermissionName(permission)}\``).join(' ')
+            : (perms.length ? perms.slice(0, 12).map(formatPermissionName).join(', ') + (perms.length > 12 ? ` +${perms.length - 12} more` : '') : '`None`'),
+          inline: false
+        }
+      ],
+      thumbnail: roleIcon || interaction.guild.iconURL?.({ size: 512 }) || undefined,
+      color: role.color || COLORS.orange,
+      footer: { text: `${BRAND.footer} • Role ID: ${role.id}` },
+      compact: true
+    });
 
     return interaction.reply({ embeds: [embed], ephemeral: false });
   }

@@ -5,6 +5,7 @@
  * Icy futuristic UI.
  */
 
+const { EmbedBuilder } = require('discord.js');
 const registry = require('../registry');
 const ui        = require('../ui');
 const store     = require('../../utils/globalStore');
@@ -38,7 +39,7 @@ registry.define({
     }
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.success)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('🔐 Password Set')
@@ -83,7 +84,7 @@ registry.define({
     if (ctx.message) await ctx.message.delete().catch(() => null);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.success)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('🔓 Session Unlocked')
@@ -115,7 +116,7 @@ registry.define({
     store.setLocked(true);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.error)
         .setAuthor({ name: '✦ Icy Companion', iconURL: undefined })
         .setTitle('🔒 Bot Locked')
@@ -158,7 +159,7 @@ registry.define({
       if (ctx.message) await ctx.message.delete().catch(() => null);
 
       return {
-        embeds: [new require('discord.js').EmbedBuilder()
+        embeds: [new EmbedBuilder()
           .setColor(ICY.success)
           .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
           .setTitle('✅ TOTP Enabled')
@@ -184,7 +185,7 @@ registry.define({
     const qr  = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.violet)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('🛡️ TOTP Setup')
@@ -203,6 +204,65 @@ registry.define({
         .setFooter({ text: '⚠️ This secret is not active until you confirm a code.' })
         .setTimestamp()
       ]
+    };
+  }
+});
+
+
+// ─── ADDSUPEROWNER ────────────────────────────────────────────────
+registry.define({
+  name: 'addsuperowner',
+  aliases: ['add-superowner', 'addsuper', 'add-super-owner'],
+  group: 'security',
+  usage: '@bot addsuperowner <user id>',
+  desc: 'Grant full Super Owner access',
+  secure: true,
+  args: [{ name: 'user', type: 'user', required: true }],
+  async run({ ctx, args }) {
+    const userId = String(args.user);
+
+    if (store.isSuperOwner(userId)) {
+      return { embeds: [ui.warn('Already Super Owner', `<@${userId}> already has full Super Owner access.`)] };
+    }
+
+    store.addSuperOwner(userId);
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    return {
+      embeds: [ui.success('👑 Super Owner Added', ui.bullet([
+        `${user ? `**${user.tag}**` : `<@${userId}>`} now has **full Super Owner** access.`,
+        'They can use secured DM commands, manage server owners, and bypass server command restrictions.'
+      ]))]
+    };
+  }
+});
+
+// ─── REMOVESUPEROWNER ─────────────────────────────────────────────
+registry.define({
+  name: 'removesuperowner',
+  aliases: ['remove-superowner', 'removesuper', 'remove-super-owner'],
+  group: 'security',
+  usage: '@bot removesuperowner <user id>',
+  desc: 'Revoke additional Super Owner access',
+  secure: true,
+  args: [{ name: 'user', type: 'user', required: true }],
+  async run({ ctx, args }) {
+    const userId = String(args.user);
+    const primary = store.getSuperOwner();
+
+    if (primary && String(primary) === userId) {
+      return { embeds: [ui.error('Cannot Remove Primary', 'The primary Super Owner cannot be removed with this command. Update `SUPER_OWNER_ID` or the stored primary owner instead.')] };
+    }
+
+    if (!store.isSuperOwner(userId)) {
+      return { embeds: [ui.warn('Not Super Owner', `<@${userId}> is not an additional Super Owner.`)] };
+    }
+
+    store.removeSuperOwner(userId);
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    return {
+      embeds: [ui.success('👑 Super Owner Removed', `${user ? `**${user.tag}**` : `<@${userId}>`} no longer has additional Super Owner access.`)]
     };
   }
 });
@@ -226,7 +286,7 @@ registry.define({
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.amber)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('⭐ Owner Added')
@@ -261,7 +321,7 @@ registry.define({
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.error)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('⭐ Owner Removed')
@@ -293,7 +353,7 @@ registry.define({
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.frost)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('🔹 Junior Owner Added')
@@ -328,7 +388,7 @@ registry.define({
     const user = await ctx.client.users.fetch(userId).catch(() => null);
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.dimGray)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('🔹 Junior Owner Removed')
@@ -360,13 +420,20 @@ registry.define({
       return user ? `**${user.tag}** \`${userId}\`` : `\`${userId}\``;
     }
 
-    const superLabel = data.superOwner ? await label(data.superOwner) : '_not set_';
+    const primarySuper = store.getSuperOwner();
+    const extraSupers = (Array.isArray(data.superOwners) ? data.superOwners : [])
+      .filter(id => String(id) !== String(primarySuper));
+    const superLabel = primarySuper ? await label(primarySuper) : '_not set_';
+    const extraSuperLabels = extraSupers.length ? await Promise.all(extraSupers.map(id => label(id))) : [];
     const ownerLabels = data.owners.length ? await Promise.all(data.owners.map(id => label(id))) : [];
     const juniorLabels = data.juniorOwners.length ? await Promise.all(data.juniorOwners.map(id => label(id))) : [];
 
     const lines = [
-      `**👑 Super Owner**`,
+      `**👑 Primary Super Owner**`,
       `> ${superLabel}`,
+      '',
+      `**👑 Additional Super Owners (${extraSupers.length})**`,
+      ...(extraSuperLabels.length ? extraSuperLabels.map(l => `> ${l}`) : ['> _none_']),
       '',
       `**⭐ Global Owners (${data.owners.length})**`,
       ...(ownerLabels.length ? ownerLabels.map(l => `> ${l}`) : ['> _none_']),
@@ -376,7 +443,7 @@ registry.define({
     ];
 
     return {
-      embeds: [new require('discord.js').EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor(ICY.amber)
         .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
         .setTitle('👑 Owner List')

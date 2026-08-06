@@ -15,12 +15,14 @@ function loadDmCommands() {
 
   // Order drives the order of the help panel groups.
   require('./commands/info');
+  require('./commands/system');
   require('./commands/deletion');
   require('./commands/broadcast');
   require('./commands/management');
   require('./commands/reports');
   require('./commands/staff');
   require('./commands/dmlogger');
+  require('./commands/theme');
   require('./commands/privacy');
   require('./commands/security');
   require('./commands/moderation');

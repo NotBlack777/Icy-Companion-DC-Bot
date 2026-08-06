@@ -12,6 +12,7 @@
 
 const ui = require('./ui');
 const store = require('../utils/globalStore');
+const { recordAudit } = require('../utils/auditLog');
 
 /**
  * Check whether a user may run a command right now.
@@ -69,10 +70,36 @@ async function execute(command, ctx, args = {}, errors = []) {
   try {
     const result = await command.run({ ctx, args });
 
+    if (command.secure || ['super', 'owner'].includes(command.tier)) {
+      recordAudit({
+        surface: ctx.source || 'dm',
+        command: command.name,
+        group: command.group,
+        tier: command.tier,
+        secure: Boolean(command.secure),
+        userId: ctx.user?.id,
+        guildId: ctx.guild?.id || null,
+        channelId: ctx.channel?.id || null,
+        status: 'ok'
+      });
+    }
+
     // Commands may return nothing when they handle their own replies.
     return result || null;
   } catch (err) {
     console.error(`[DM CMD] ${command.name} failed:`, err);
+    recordAudit({
+      surface: ctx.source || 'dm',
+      command: command.name,
+      group: command.group,
+      tier: command.tier,
+      secure: Boolean(command.secure),
+      userId: ctx.user?.id,
+      guildId: ctx.guild?.id || null,
+      channelId: ctx.channel?.id || null,
+      status: 'error',
+      error: String(err.message || err).slice(0, 300)
+    });
 
     return {
       embeds: [ui.error('Command failed', [

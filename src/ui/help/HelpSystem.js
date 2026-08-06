@@ -12,24 +12,10 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 const { createEmbed, e } = require('../../utils/uiHelper');
+const { createColorProxy } = require('../../utils/themeManager');
 
 // ─── Icy Color Palette ─────────────────────────────────────────────
-const ICY = {
-  frost:    0x00d4ff,
-  glacier:  0x0096c7,
-  midnight: 0x0a1628,
-  neon:     0x7df9ff,
-  violet:   0x9b5de5,
-  pink:     0xf72585,
-  mint:     0x00f5d4,
-  amber:    0xffd60a,
-  lava:     0xff4d6d,
-  success:  0x00f5a0,
-  error:    0xff3d71,
-  warn:     0xffaa00,
-  info:     0x00c8ff,
-  brand:    0x00c8ff,
-};
+const ICY = createColorProxy();
 
 // ─── Categories ────────────────────────────────────────────────────
 const HELP_CATEGORIES = [
@@ -128,10 +114,36 @@ const HELP_CATEGORIES = [
     color: ICY.amber,
     description: 'Manage bot owners for this server.',
     commands: [
-      { name: '/owner',               desc: 'View the primary and extra owners' },
-      { name: '/add-extra-owner',     desc: 'Add an extra bot owner' },
-      { name: '/remove-extra-owner',   desc: 'Remove an extra bot owner' },
-      { name: '/transfer-ownership',   desc: 'Transfer primary ownership' }
+      { name: '/owner-list',           desc: 'View the primary and server owners', aliases: ['/owner'] },
+      { name: '/add-owner',            desc: 'Add a server bot owner', aliases: ['/add-extra-owner'] },
+      { name: '/remove-owner',         desc: 'Remove a server bot owner', aliases: ['/remove-extra-owner'] },
+      { name: '/transfer-ownership',   desc: 'Transfer primary server ownership' }
+    ]
+  },
+  {
+    id: 'dm-control',
+    label: 'Owner DM',
+    emoji: '📨',
+    color: ICY.orange,
+    description: 'Owner-only @bot commands used in DMs or by mentioning the bot.',
+    examples: [
+      '`@bot massdm #1 --dry-run --limit 10 Hello team!`',
+      '`@bot massdm #1 --yes --plain --delay 1500 Hello everyone!`',
+      '`@bot theme test #00D4FF #FB8500 #38BDF8`',
+      '`@bot dm whitelist list`'
+    ],
+    commands: [
+      { name: '@bot massdm', desc: 'Mass DM members in one server with progress + rate delay. Needs --yes to actually send.', aliases: ['mass dm', 'dm all', 'dmall', 'mass-dm'], example: '@bot massdm #1 --dry-run --limit 10 Hello!' },
+      { name: '@bot broadcast', desc: 'Post an announcement to a sendable channel in every server', aliases: ['bc'], example: '@bot broadcast Maintenance starts soon.' },
+      { name: '@bot announce', desc: 'Post an announcement in a specific channel', example: '@bot announce #1 123456789012345678 Hello!' },
+      { name: '@bot dm', desc: 'Send a plain direct message to one user', example: '@bot dm 773827814267813928 hello' },
+      { name: '@bot theme', desc: 'Show/apply/test/save custom UI themes', aliases: ['themes', 'theme presets', 'set theme', 'theme preview'], example: '@bot theme save orange-sky #00D4FF #FB8500 #38BDF8' },
+      { name: '@bot dm mode whitelist', desc: 'Only relay/log whitelisted DM users', aliases: ['dm access whitelist', 'dm whitelist mode'] },
+      { name: '@bot dm whitelist add', desc: 'Grant a user DM whitelist access', aliases: ['dm allow add', 'dm access add'] },
+      { name: '@bot serverowner add', desc: 'Add a server bot owner from DMs', aliases: ['addserverowner', 'server-owner-add'] },
+      { name: '@bot health', desc: 'Check uptime, memory, theme and DM logger status', aliases: ['system', 'diagnostics'] },
+      { name: '@bot exportconfig', desc: 'Export server config backup JSON', aliases: ['config export', 'backupconfig'] },
+      { name: '@bot importconfig', desc: 'Restore a config backup from JSON', aliases: ['config import', 'restoreconfig'] }
     ]
   },
   {
@@ -142,11 +154,12 @@ const HELP_CATEGORIES = [
     description: 'General utility and fun commands.',
     commands: [
       { name: '/ping',         desc: 'Check bot latency' },
+      { name: '/health',       desc: 'View bot health and runtime status' },
       { name: '/uptime',       desc: 'View bot uptime' },
-      { name: '/server-info',  desc: 'View server information' },
-      { name: '/bot-info',     desc: 'View bot information' },
-      { name: '/user-info',    desc: 'View user information' },
-      { name: '/member-count', desc: 'View member statistics' },
+      { name: '/server-info',  desc: 'View server information', aliases: ['/serverinfo'] },
+      { name: '/bot-info',     desc: 'View bot information', aliases: ['/botinfo'] },
+      { name: '/user-info',    desc: 'View user information', aliases: ['/userinfo'] },
+      { name: '/member-count', desc: 'View member statistics', aliases: ['/membercount'] },
       { name: '/avatar',         desc: 'View a user avatar or PFP' },
       { name: '/pfp',             desc: 'View a user profile picture' },
       { name: '/banner',          desc: 'View a user profile banner' },
@@ -187,6 +200,9 @@ const HELP_CATEGORIES = [
       { name: '/set-automod',      desc: 'Configure auto-moderation filters' },
       { name: '/word-filter',      desc: 'Manage auto-mod word filter list' },
       { name: '/set-embed-colors', desc: 'Customize bot embed colors' },
+      { name: '/theme',            desc: 'Set or preview this server theme override', example: '/theme set name:sunset-ice' },
+      { name: '/maintenance',      desc: 'Disable modules or individual commands with a maintenance note', example: '/maintenance command command:ban enabled:true note:Updating ban logs' },
+      { name: '/rate-limit',       desc: 'Set, view, or turn off per-command cooldowns', example: '/rate-limit set enabled:true seconds:5' },
       { name: '/set-mod-log',      desc: 'Set the mod log channel' },
       { name: '/set-purge-log',    desc: 'Set the purge log channel' },
       { name: '/set-warn-actions', desc: 'Auto-punish at warning thresholds' },
@@ -215,42 +231,110 @@ function guildPrefix(guild) {
   }
 }
 
+function formatAliasList(aliases = []) {
+  return aliases.length ? `\n> **Aliases:** ${aliases.map(alias => `\`${alias}\``).join(', ')}` : '';
+}
+
+function formatExample(example) {
+  return example ? `\n> **Example:** \`${example}\`` : '';
+}
+
+function commandRow(command) {
+  return [
+    `**${command.name}** — ${command.desc}`,
+    formatAliasList(command.aliases),
+    formatExample(command.example)
+  ].filter(Boolean).join('');
+}
+
+function chunkRows(rows, limit = 900) {
+  const chunks = [];
+  let current = '';
+
+  for (const row of rows) {
+    const next = current ? `${current}\n\n${row}` : row;
+    if (next.length > limit && current) {
+      chunks.push(current);
+      current = row;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : ['_No commands in this category yet._'];
+}
+
 // ─── Home Page ─────────────────────────────────────────────────────
 function buildHomePage(client, guild) {
   const avatar = botAvatar(client);
   const prefix = guildPrefix(guild);
   const totalCmds = HELP_CATEGORIES.slice(1).reduce((sum, c) => sum + (c.commands?.length || 0), 0);
+  const categories = HELP_CATEGORIES.slice(1);
+  const quickStart = [
+    `**Public help:** \`/help\``,
+    `**Bot mention:** \`@bot\``,
+    `**Owner controls:** DM me \`@bot help\``,
+    `**Mass DM test:** \`@bot massdm #1 --dry-run --limit 10 Hello!\``
+  ].join('\n');
+
+  const categoryFields = chunkRows(
+    categories.map(category => `${category.emoji} **${category.label}** — ${category.description}  \`${category.commands?.length || 0}\``),
+    950
+  ).map((chunk, index) => ({
+    name: index === 0 ? 'Pick a lane' : 'More lanes',
+    value: chunk,
+    inline: false
+  }));
 
   return createEmbed({
-    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
-    description: `### ${e('rocket')} Welcome to Icy Companion\n` +
-                 `> **Managing communities with precision.**\n\n` +
-                 `**Stats Overview:**\n` +
-                 `> ${e('commands')} **${totalCmds}** Commands\n` +
-                 `> ${e('settings')} **${HELP_CATEGORIES.length - 1}** Categories\n` +
-                 `> ${e('file')} **Prefix:** \`${prefix}\`\n\n` +
-                 `**Categories:**\n` +
-                 HELP_CATEGORIES.slice(1).map(cat => `${cat.emoji} **${cat.label}** - ${cat.description}`).join('\n'),
-    footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'}` },
+    author: { name: '🌅 ICY COMPANION • EASY HELP', iconURL: avatar || undefined },
+    title: `${e('rocket') || '🚀'} Help, but chill`,
+    description: [
+      '**No war manual. Just pick a category from the dropdown.**',
+      '',
+      `> ${e('commands')} **${totalCmds}** commands • ${e('settings')} **${HELP_CATEGORIES.length - 1}** sections • Prefix \`${prefix}\``,
+      '',
+      quickStart
+    ].join('\n'),
+    fields: categoryFields,
+    footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'} • Dropdown below` },
     thumbnail: avatar,
-    color: ICY.frost
+    color: ICY.frost,
+    compact: true
   });
 }
 
 // ─── Category Page ─────────────────────────────────────────────────
 function buildCategoryPage(category, page, total, avatar) {
   const commands = category.commands || [];
+  const rows = commands.map(commandRow);
+  const commandFields = chunkRows(rows, 930).slice(0, 20).map((chunk, index) => ({
+    name: index === 0 ? 'Commands' : 'More commands',
+    value: chunk,
+    inline: false
+  }));
 
-  const cmdList = commands.map(cmd => `**${cmd.name}**\n> ${cmd.desc}`).join('\n\n');
+  if (Array.isArray(category.examples) && category.examples.length) {
+    commandFields.push({
+      name: 'Copy-paste examples',
+      value: category.examples.map(example => `> ${example}`).join('\n'),
+      inline: false
+    });
+  }
 
   return createEmbed({
-    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
-    description: `### ${category.emoji} ${category.label.toUpperCase()}\n` +
-                 `> ${category.description}\n\n` +
-                 (cmdList || '*No commands in this category.*'),
-    footer: { text: `Page ${page + 1}/${total} • Use / for commands` },
+    author: { name: '🌅 ICY COMPANION • EASY HELP', iconURL: avatar || undefined },
+    title: `${category.emoji} ${category.label}`,
+    description: [
+      `**${category.description}**`,
+      `> ${commands.length} command${commands.length === 1 ? '' : 's'} shown with aliases/examples where useful.`
+    ].join('\n'),
+    fields: commandFields,
+    footer: { text: `Page ${page + 1}/${total} • Use dropdown/buttons • Owner DM tools use @bot` },
     thumbnail: avatar,
-    color: category.color || ICY.frost
+    color: category.color || ICY.frost,
+    compact: true
   });
 }
 
