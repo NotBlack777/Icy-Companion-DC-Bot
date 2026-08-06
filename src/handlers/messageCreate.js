@@ -43,8 +43,20 @@ module.exports = {
       const parsed = dm.parser.parse(message.content, botId, dm.registry);
 
       if (parsed.addressed) {
-        // Bare mention -> show help to owners, ignore everyone else.
+        // Bare mention -> always answer in servers, and show the private
+        // owner control hub only inside DMs so sensitive owner commands do
+        // not get dumped into public channels.
         if (parsed.empty) {
+          if (message.guild) {
+            return message.reply({
+              embeds: [ui.info('Icy Companion Online', ui.bullet([
+                'Use `/help` to open the public command menu.',
+                'Owners can DM me and send `@bot help` for the control panel.',
+                `Server: **${message.guild.name}**`
+              ]))]
+            }).catch(() => null);
+          }
+
           if (!store.hasTier(message.author.id, 'junior')) return;
 
           const payload = dm.help.buildDmHelp({
@@ -66,12 +78,21 @@ module.exports = {
           }).catch(() => null);
         }
 
+        let progressMessage = null;
+
+        if (parsed.command.deferMessage) {
+          progressMessage = await message.reply({
+            embeds: [ui.loading(`Running ${parsed.command.name}...`)]
+          }).catch(() => null);
+        }
+
         const ctx = {
           client,
           user: message.author,
           channel: message.channel,
           guild: message.guild,
           message,
+          progressMessage,
           source: 'mention'
         };
 
@@ -80,6 +101,12 @@ module.exports = {
         );
 
         if (!payload) return;
+
+        if (progressMessage) {
+          return progressMessage.edit(payload).catch(async () => {
+            await message.channel.send(payload).catch(() => null);
+          });
+        }
 
         return message.reply(payload).catch(async () => {
           // reply() fails if the original message was deleted (e.g. setpassword).

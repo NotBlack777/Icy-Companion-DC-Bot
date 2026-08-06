@@ -213,6 +213,16 @@ async function runRuntimeSmokeChecks() {
     store.setDmLogger(originalLogger);
   }
 
+  const parser = require('../src/dm/parser');
+  const broadcastCommands = require('../src/dm/commands/broadcast');
+  const massDmParse = parser.parse('<@123> massdm #1 --dry-run --plain hello everyone', '123', registry);
+  if (massDmParse.command?.name !== 'massdm') fail('massdm mention command did not parse');
+  if (massDmParse.args?.server !== '#1') fail('massdm server argument did not bind');
+  const massDmOptions = broadcastCommands.parseMassDmOptions('--dry-run --plain --delay 800 --limit 5 hello all');
+  if (!massDmOptions.options.dryRun || massDmOptions.options.mode !== 'plain' || massDmOptions.message !== 'hello all') {
+    fail('massdm options did not parse');
+  }
+
   const themeManager = require('../src/utils/themeManager');
   const originalTheme = store.load().theme;
   try {
