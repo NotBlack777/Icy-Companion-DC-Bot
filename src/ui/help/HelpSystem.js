@@ -196,6 +196,8 @@ const HELP_CATEGORIES = [
       { name: '/set-automod',      desc: 'Configure auto-moderation filters' },
       { name: '/word-filter',      desc: 'Manage auto-mod word filter list' },
       { name: '/set-embed-colors', desc: 'Customize bot embed colors' },
+      { name: '/maintenance',      desc: 'Disable modules or individual commands with a maintenance note', example: '/maintenance command command:ban enabled:true note:Updating ban logs' },
+      { name: '/rate-limit',       desc: 'Set, view, or turn off per-command cooldowns', example: '/rate-limit set enabled:true seconds:5' },
       { name: '/set-mod-log',      desc: 'Set the mod log channel' },
       { name: '/set-purge-log',    desc: 'Set the purge log channel' },
       { name: '/set-warn-actions', desc: 'Auto-punish at warning thresholds' },

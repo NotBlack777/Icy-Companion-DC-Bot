@@ -12,6 +12,14 @@ const {
   createDefaultConfig
 } = require('../../utils/configManager');
 const { clearGuildStreaks } = require('../../utils/streakSystem');
+const {
+  cleanCommandName,
+  cleanModuleName,
+  listMaintenance,
+  setModuleMaintenance,
+  setCommandMaintenance
+} = require('../../utils/maintenance');
+const { clearAllRateLimits } = require('../../utils/cooldown');
 
 /* ---------------- LEAVE ---------------- */
 
@@ -287,6 +295,170 @@ registry.define({
     ];
 
     return { embeds: [ui.info('Server Owners', lines.join('\n'))] };
+  }
+});
+
+
+/* ---------------- MAINTENANCE LIST ---------------- */
+
+function parseToggle(value) {
+  const raw = String(value || '').toLowerCase();
+  if (['on', 'true', 'yes', 'enable', 'enabled', 'maintenance'].includes(raw)) return true;
+  if (['off', 'false', 'no', 'disable', 'disabled', 'live'].includes(raw)) return false;
+  return null;
+}
+
+function maintenanceSummary(config) {
+  const list = listMaintenance(config);
+  if (!list.total) return 'Everything is live. No modules or commands are under maintenance.';
+
+  return [
+    `**Total disabled:** \`${list.total}\``,
+    '',
+    `**Modules (${list.modules.length})**`,
+    list.modules.length ? list.modules.map(entry => `> **${entry.name}** — ${entry.note || 'No note'}`).join('\n') : '> _None_',
+    '',
+    `**Commands (${list.commands.length})**`,
+    list.commands.length ? list.commands.map(entry => `> **${entry.name}** — ${entry.note || 'No note'}`).join('\n') : '> _None_'
+  ].join('\n');
+}
+
+registry.define({
+  name: 'maintenance list',
+  aliases: ['maint list', 'maintenance status'],
+  group: 'management',
+  usage: '@bot maintenance list <#N/serverid>',
+  desc: 'Show modules and commands under maintenance in a server',
+  args: [{ name: 'server', type: 'server', required: true }],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const config = getServerConfig(resolved.guildId);
+    return {
+      embeds: [ui.panel('Maintenance Status', [
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        '',
+        maintenanceSummary(config)
+      ], { color: ui.ICY.warn })]
+    };
+  }
+});
+
+registry.define({
+  name: 'maintenance module',
+  aliases: ['maint module'],
+  group: 'management',
+  usage: '@bot maintenance module <#N/serverid> <module> <on/off> [note]',
+  desc: 'Toggle maintenance for a whole module/category',
+  secure: true,
+  args: [
+    { name: 'server', type: 'server', required: true },
+    { name: 'module', type: 'word', required: true },
+    { name: 'state', type: 'word', required: true },
+    { name: 'note', type: 'rest', required: false }
+  ],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const enabled = parseToggle(args.state);
+    if (enabled === null) return { embeds: [ui.error('Invalid State', 'Use `on` for maintenance or `off` to make it live.')] };
+
+    const config = getServerConfig(resolved.guildId);
+    const moduleName = cleanModuleName(args.module);
+    setModuleMaintenance(config, moduleName, enabled, args.note, ctx.user.id);
+    saveServerConfig(resolved.guildId, config);
+
+    return {
+      embeds: [ui.panel(enabled ? 'Module Under Maintenance' : 'Module Back Online', [
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Module:** \`${moduleName}\``,
+        enabled ? `**Note shown:** ${args.note || 'Temporarily under maintenance.'}` : '**Status:** Live again'
+      ], { color: enabled ? ui.ICY.warn : ui.ICY.success })]
+    };
+  }
+});
+
+registry.define({
+  name: 'maintenance command',
+  aliases: ['maint command'],
+  group: 'management',
+  usage: '@bot maintenance command <#N/serverid> <command> <on/off> [note]',
+  desc: 'Toggle maintenance for one command',
+  secure: true,
+  args: [
+    { name: 'server', type: 'server', required: true },
+    { name: 'command', type: 'word', required: true },
+    { name: 'state', type: 'word', required: true },
+    { name: 'note', type: 'rest', required: false }
+  ],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const enabled = parseToggle(args.state);
+    if (enabled === null) return { embeds: [ui.error('Invalid State', 'Use `on` for maintenance or `off` to make it live.')] };
+
+    const config = getServerConfig(resolved.guildId);
+    const commandName = cleanCommandName(args.command);
+    setCommandMaintenance(config, commandName, enabled, args.note, ctx.user.id);
+    saveServerConfig(resolved.guildId, config);
+
+    return {
+      embeds: [ui.panel(enabled ? 'Command Under Maintenance' : 'Command Back Online', [
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Command:** \`/${commandName}\``,
+        enabled ? `**Note shown:** ${args.note || 'Temporarily under maintenance.'}` : '**Status:** Live again'
+      ], { color: enabled ? ui.ICY.warn : ui.ICY.success })]
+    };
+  }
+});
+
+/* ---------------- RATE LIMIT ---------------- */
+
+registry.define({
+  name: 'ratelimit',
+  aliases: ['rate-limit', 'cooldown'],
+  group: 'management',
+  usage: '@bot ratelimit <#N/serverid> <status|off|seconds>',
+  desc: 'Show, disable or set server command rate limits',
+  secure: true,
+  args: [
+    { name: 'server', type: 'server', required: true },
+    { name: 'value', type: 'word', required: true }
+  ],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const config = getServerConfig(resolved.guildId);
+    config.rateLimit = config.rateLimit || { enabled: true, durationMs: 3000 };
+    const value = String(args.value).toLowerCase();
+
+    if (value === 'off' || value === 'disable') {
+      config.rateLimit.enabled = false;
+      clearAllRateLimits();
+      saveServerConfig(resolved.guildId, config);
+    } else if (value !== 'status') {
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) {
+        return { embeds: [ui.error('Invalid Rate Limit', 'Use `status`, `off`, or a duration in seconds from `0` to `86400`.')] };
+      }
+      config.rateLimit.enabled = seconds > 0;
+      config.rateLimit.durationMs = seconds * 1000;
+      clearAllRateLimits();
+      saveServerConfig(resolved.guildId, config);
+    }
+
+    return {
+      embeds: [ui.panel('Rate Limit', [
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Status:** ${config.rateLimit.enabled ? '`Enabled`' : '`Disabled`'}`,
+        `**Duration:** \`${Math.round((config.rateLimit.durationMs || 0) / 1000)}s\``,
+        '> Applies per user + per command. Server owners bypass it.'
+      ], { color: config.rateLimit.enabled ? ui.ICY.frost : ui.ICY.warn })]
+    };
   }
 });
 

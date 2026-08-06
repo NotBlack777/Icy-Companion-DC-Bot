@@ -2,6 +2,9 @@ const { Events, MessageFlags } = require('discord.js');
 const { getServerConfig } = require('../utils/configManager');
 const { canUseCommand } = require('../utils/permissions');
 const { isSuperOwner } = require('../utils/globalStore');
+const { isGuildOwner } = require('../utils/guildAuth');
+const { getMaintenanceBlock, maintenanceEmbed } = require('../utils/maintenance');
+const { checkRateLimit, formatRemaining } = require('../utils/cooldown');
 const safeRun = require('../utils/safeRunner');
 const { safeUpdate, safeReply } = require('../utils/interactionResponder');
 
@@ -195,6 +198,28 @@ module.exports = {
             : '🚫 You cannot use commands in this ignored context.',
           flags: MessageFlags.Ephemeral
         });
+      }
+
+      const maintenanceBlock = getMaintenanceBlock(config, command, interaction.commandName);
+      if (maintenanceBlock) {
+        return safeReply(interaction, {
+          embeds: [maintenanceEmbed(maintenanceBlock)],
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      const ownerBypass = isGuildOwner(config, interaction);
+      const rateLimit = config.rateLimit || { enabled: false, durationMs: 0 };
+      if (!ownerBypass && rateLimit.enabled && Number(rateLimit.durationMs) > 0) {
+        const key = `${interaction.guild.id}:${interaction.user.id}:${interaction.commandName.toLowerCase()}`;
+        const check = checkRateLimit(key, Number(rateLimit.durationMs));
+
+        if (!check.allowed) {
+          return safeReply(interaction, {
+            content: `⏳ Slow down — try \`/${interaction.commandName}\` again in **${formatRemaining(check.remainingMs)}**.`,
+            flags: MessageFlags.Ephemeral
+          });
+        }
       }
 
       return safeRun(command, interaction, activeClient, config);

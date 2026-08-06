@@ -188,6 +188,15 @@ async function runRuntimeSmokeChecks() {
   if (!canUseCommand(authConfig, fakeInteraction('extra-owner'))) fail('server owner did not bypass ignore rules');
   if (canUseCommand(authConfig, fakeInteraction('ignored-user'))) fail('ignored normal user bypassed ignore rules');
 
+  const { getMaintenanceBlock, setCommandMaintenance, setModuleMaintenance } = require('../src/utils/maintenance');
+  const maintenanceConfig = { maintenance: { disabledModules: {}, disabledCommands: {} } };
+  setCommandMaintenance(maintenanceConfig, 'ban', true, 'Ban command is being upgraded.', 'owner-id');
+  if (!getMaintenanceBlock(maintenanceConfig, { category: 'moderation', data: { name: 'ban' } }, 'ban')) fail('disabled command was not blocked');
+  setCommandMaintenance(maintenanceConfig, 'ban', false);
+  setModuleMaintenance(maintenanceConfig, 'moderation', true, 'Moderation is paused.', 'owner-id');
+  if (!getMaintenanceBlock(maintenanceConfig, { category: 'moderation', data: { name: 'kick' } }, 'kick')) fail('disabled module was not blocked');
+  if (getMaintenanceBlock(maintenanceConfig, { category: 'settings', data: { name: 'maintenance' } }, 'maintenance')) fail('maintenance command should be exempt');
+
   const { getDisplayRolePosition } = require('../src/utils/rolePosition');
   const roleFixtures = [
     { id: 'guild-id', position: 0, name: '@everyone' },
