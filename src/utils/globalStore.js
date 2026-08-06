@@ -49,7 +49,8 @@ function defaults() {
     // UI theme. Presets/custom values are resolved by utils/themeManager.
     theme: {
       preset: 'sunset-ice',
-      custom: null
+      custom: null,
+      saved: {}
     },
 
     // DM logger

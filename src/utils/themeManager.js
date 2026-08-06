@@ -128,6 +128,7 @@ const PRESETS = {
 };
 
 const DEFAULT_PRESET = 'sunset-ice';
+const SAVED_PREFIX = 'saved:';
 const COLOR_KEYS = [
   'frost', 'sky', 'ice', 'glacier', 'sunrise', 'orange', 'amber', 'deep',
   'success', 'error', 'warn', 'violet', 'pink', 'mint'
@@ -147,13 +148,38 @@ function intToHex(value) {
   return `#${Number(value || 0).toString(16).toUpperCase().padStart(6, '0')}`;
 }
 
+function slugThemeName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
+}
+
+function savedThemesFrom(config = {}) {
+  return config.saved && typeof config.saved === 'object' && !Array.isArray(config.saved)
+    ? config.saved
+    : {};
+}
+
 function normalizeThemeConfig(config = {}) {
+  const saved = savedThemesFrom(config);
   const requested = String(config.preset || DEFAULT_PRESET).toLowerCase();
-  const preset = requested === 'custom' || PRESETS[requested] ? requested : DEFAULT_PRESET;
+  let preset = DEFAULT_PRESET;
+
+  if (requested === 'custom' || PRESETS[requested]) {
+    preset = requested;
+  } else if (requested.startsWith(SAVED_PREFIX) && saved[requested.slice(SAVED_PREFIX.length)]) {
+    preset = requested;
+  } else if (saved[slugThemeName(requested)]) {
+    preset = `${SAVED_PREFIX}${slugThemeName(requested)}`;
+  }
 
   return {
     preset,
-    custom: config.custom && typeof config.custom === 'object' ? config.custom : null
+    custom: config.custom && typeof config.custom === 'object' ? config.custom : null,
+    saved
   };
 }
 
@@ -161,17 +187,18 @@ function getThemeConfig() {
   return normalizeThemeConfig(store.load().theme);
 }
 
-function buildCustomTheme(custom = {}) {
+function buildCustomTheme(custom = {}, id = 'custom') {
   const base = PRESETS[DEFAULT_PRESET];
   const primary = Number(custom.primary || base.frost);
   const secondary = Number(custom.secondary || base.orange);
   const accent = Number(custom.accent || base.sky);
+  const label = custom.name || (id === 'custom' ? 'Custom Theme' : id);
 
   return {
     ...base,
-    id: 'custom',
-    label: custom.name || 'Custom Theme',
-    description: 'Your custom Icy Companion theme.',
+    id,
+    label,
+    description: custom.description || 'Your custom Icy Companion theme.',
     frost: primary,
     sky: accent,
     ice: accent,
@@ -181,17 +208,41 @@ function buildCustomTheme(custom = {}) {
     amber: secondary,
     violet: secondary,
     warn: secondary,
-    footer: custom.footer || '🎨 Icy Companion • Custom UI',
+    footer: custom.footer || `🎨 Icy Companion • ${label} UI`,
     divider: custom.divider || '🎨━━━━━━━━━━━━━━━━━━━━🧊',
     thin: custom.thin || '🎨────────────────────🧊',
     glow: custom.glow || '🎨 ✦ 🌅 ✦ 🧊 ✦ ✨',
-    interfaceName: custom.interfaceName || 'Custom Interface'
+    interfaceName: custom.interfaceName || `${label} Interface`,
+    saved: Boolean(id && id !== 'custom')
   };
+}
+
+function resolveTheme(nameOrId) {
+  const config = getThemeConfig();
+  const key = String(nameOrId || '').trim().toLowerCase();
+  const slug = slugThemeName(key);
+
+  if (PRESETS[key]) return PRESETS[key];
+  if (config.saved[slug]) return buildCustomTheme(config.saved[slug], slug);
+  if (key.startsWith(SAVED_PREFIX) && config.saved[key.slice(SAVED_PREFIX.length)]) {
+    const savedKey = key.slice(SAVED_PREFIX.length);
+    return buildCustomTheme(config.saved[savedKey], savedKey);
+  }
+  if (key === 'custom' && config.custom) return buildCustomTheme(config.custom);
+
+  return null;
 }
 
 function getTheme() {
   const config = getThemeConfig();
+
   if (config.preset === 'custom' && config.custom) return buildCustomTheme(config.custom);
+
+  if (config.preset.startsWith(SAVED_PREFIX)) {
+    const key = config.preset.slice(SAVED_PREFIX.length);
+    if (config.saved[key]) return buildCustomTheme(config.saved[key], key);
+  }
+
   return PRESETS[config.preset] || PRESETS[DEFAULT_PRESET];
 }
 
@@ -219,13 +270,22 @@ function createColorProxy() {
 
 function setThemePreset(preset) {
   const key = String(preset || '').toLowerCase();
-  if (!PRESETS[key]) {
-    throw new Error(`Unknown theme preset. Use one of: ${Object.keys(PRESETS).join(', ')}, custom.`);
+  const savedKey = slugThemeName(key);
+  const config = getThemeConfig();
+
+  if (PRESETS[key]) {
+    return store.update(data => {
+      data.theme = { ...(data.theme || {}), preset: key, saved: savedThemesFrom(data.theme) };
+    });
   }
 
-  return store.update(data => {
-    data.theme = { preset: key, custom: data.theme?.custom || null };
-  });
+  if (config.saved[savedKey]) {
+    return store.update(data => {
+      data.theme = { ...(data.theme || {}), preset: `${SAVED_PREFIX}${savedKey}`, saved: savedThemesFrom(data.theme) };
+    });
+  }
+
+  throw new Error(`Unknown theme. Use one of: ${listThemes().map(t => t.id).join(', ')}, custom.`);
 }
 
 function setCustomTheme({ primary, secondary, accent, name = 'Custom Theme' }) {
@@ -237,13 +297,70 @@ function setCustomTheme({ primary, secondary, accent, name = 'Custom Theme' }) {
   };
 
   return store.update(data => {
-    data.theme = { preset: 'custom', custom };
+    data.theme = { ...(data.theme || {}), preset: 'custom', custom, saved: savedThemesFrom(data.theme) };
+  });
+}
+
+function saveTheme(name, colors = null) {
+  const slug = slugThemeName(name);
+  if (!slug) throw new Error('Theme name must contain letters or numbers.');
+  if (PRESETS[slug]) throw new Error('That name is reserved by a built-in preset.');
+
+  let source;
+  if (colors) {
+    source = {
+      name: String(name).trim(),
+      primary: hexToInt(colors.primary, 'primary'),
+      secondary: hexToInt(colors.secondary, 'secondary'),
+      accent: hexToInt(colors.accent, 'accent')
+    };
+  } else {
+    const current = getTheme();
+    source = {
+      name: String(name).trim(),
+      primary: current.frost,
+      secondary: current.orange,
+      accent: current.sky,
+      footer: `🎨 Icy Companion • ${String(name).trim()} UI`,
+      divider: current.divider,
+      thin: current.thin,
+      glow: current.glow,
+      interfaceName: `${String(name).trim()} Interface`
+    };
+  }
+
+  store.update(data => {
+    const saved = savedThemesFrom(data.theme);
+    data.theme = {
+      ...(data.theme || {}),
+      saved: {
+        ...saved,
+        [slug]: source
+      }
+    };
+  });
+
+  return { slug, theme: buildCustomTheme(source, slug) };
+}
+
+function deleteSavedTheme(name) {
+  const slug = slugThemeName(name);
+  return store.update(data => {
+    const saved = savedThemesFrom(data.theme);
+    delete saved[slug];
+
+    const current = data.theme?.preset;
+    data.theme = {
+      ...(data.theme || {}),
+      preset: current === `${SAVED_PREFIX}${slug}` ? DEFAULT_PRESET : current,
+      saved
+    };
   });
 }
 
 function resetTheme() {
   return store.update(data => {
-    data.theme = { preset: DEFAULT_PRESET, custom: null };
+    data.theme = { ...(data.theme || {}), preset: DEFAULT_PRESET, custom: null, saved: savedThemesFrom(data.theme) };
   });
 }
 
@@ -259,6 +376,7 @@ function themeSummary(theme = getTheme()) {
 
 function listPresets() {
   return Object.values(PRESETS).map(theme => ({
+    type: 'preset',
     id: theme.id,
     label: theme.label,
     description: theme.description,
@@ -268,19 +386,46 @@ function listPresets() {
   }));
 }
 
+function listSavedThemes() {
+  const { saved } = getThemeConfig();
+  return Object.entries(saved).map(([id, theme]) => {
+    const built = buildCustomTheme(theme, id);
+    return {
+      type: 'saved',
+      id,
+      label: built.label,
+      description: built.description,
+      primary: intToHex(built.frost),
+      secondary: intToHex(built.orange),
+      accent: intToHex(built.sky)
+    };
+  });
+}
+
+function listThemes() {
+  return [...listPresets(), ...listSavedThemes()];
+}
+
 module.exports = {
   PRESETS,
   DEFAULT_PRESET,
   COLOR_KEYS,
+  SAVED_PREFIX,
   hexToInt,
   intToHex,
+  slugThemeName,
   getThemeConfig,
   getTheme,
   getColor,
   createColorProxy,
+  resolveTheme,
   setThemePreset,
   setCustomTheme,
+  saveTheme,
+  deleteSavedTheme,
   resetTheme,
   themeSummary,
-  listPresets
+  listPresets,
+  listSavedThemes,
+  listThemes
 };

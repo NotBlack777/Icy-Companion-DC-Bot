@@ -139,7 +139,10 @@ registry.define({
     if (user.bot) return { embeds: [ui.error('Cannot DM', 'That user is a bot.')] };
 
     try {
-      await user.send({ embeds: [announcementEmbed(ctx, args.message)] });
+      // This is an owner-to-user direct message, not an announcement.
+      // Send the text plainly so `@bot dm <user> hello` arrives as `hello`,
+      // instead of looking like a broadcast embed.
+      await user.send({ content: ui.truncate(args.message, 1900) });
     } catch (err) {
       const reason = err.code === 50007 ? 'Their DMs are closed or the bot is blocked.' : err.message;
       return { embeds: [ui.error('Delivery Failed', `Could not DM **${user.tag}**.\n> ${reason}`)] };

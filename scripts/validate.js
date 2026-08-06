@@ -223,6 +223,10 @@ async function runRuntimeSmokeChecks() {
     if (custom.id !== 'custom' || themeManager.intToHex(custom.frost) !== '#112233') {
       fail('custom theme did not apply');
     }
+    const saved = themeManager.saveTheme('unit-test-theme');
+    if (!themeManager.listThemes().some(theme => theme.id === saved.slug)) fail('saved custom theme was not listed');
+    themeManager.setThemePreset(saved.slug);
+    if (themeManager.getTheme().id !== saved.slug) fail('saved custom theme did not apply');
   } finally {
     store.update(data => {
       data.theme = originalTheme;
