@@ -1,8 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const {
-  getServerConfig,
-  saveServerConfig
-} = require('../../utils/configManager');
+const { saveServerConfig } = require('../../utils/configManager');
+const { guard } = require('../../utils/guildAuth');
 
 module.exports = {
   category: 'owner',
@@ -18,23 +16,10 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!interaction.guild) {
-      return interaction.reply({
-        content: '❌ This command can only be used in a server.',
-        ephemeral: true
-      });
-    }
+    const { ok, config } = await guard(interaction, 'owner');
+    if (!ok) return;
 
-    const config = getServerConfig(interaction.guild.id);
     const currentOwner = config.owner || interaction.guild.ownerId;
-
-    if (interaction.user.id !== currentOwner && interaction.user.id !== interaction.guild.ownerId) {
-      return interaction.reply({
-        content: '❌ Owner only.',
-        ephemeral: true
-      });
-    }
-
     const user = interaction.options.getUser('user');
 
     if (!user) {

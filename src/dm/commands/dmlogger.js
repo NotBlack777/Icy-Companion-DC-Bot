@@ -13,7 +13,30 @@ const { resolveDestination } = require('../logger');
 
 const { ICY } = ui;
 
-function icyDivider() { return `\`\`\`\n${'═'.repeat(44)}\n\`\`\``; }
+function icyDivider() { return ui.DIVIDER; }
+
+function loggerPanel(ctx, title, lines, color = ICY.frost, options = {}) {
+  return ui.panel(title, lines, {
+    color,
+    author: {
+      name: '🌅 Icy Companion • DM Access Matrix',
+      iconURL: ctx.client.user?.displayAvatarURL?.() || undefined
+    },
+    footer: options.footer || 'DM Logger • Sunset Ice Access',
+    compact: options.compact || false
+  });
+}
+
+async function userLines(ctx, ids) {
+  const unique = [...new Set((ids || []).map(String).filter(Boolean))];
+
+  if (!unique.length) return ['> _Nobody yet._'];
+
+  return Promise.all(unique.map(async (id, index) => {
+    const user = ctx.client.users.cache.get(id) || await ctx.client.users.fetch(id).catch(() => null);
+    return `> **${index + 1}.** ${user ? `**${user.tag}**` : `<@${id}>`}  \`${id}\``;
+  }));
+}
 
 /* ─── BLACKLIST ADD ──────────────────────────────────────────────── */
 registry.define({
@@ -113,6 +136,142 @@ registry.define({
         .setFooter({ text: `✦ ${blacklist.length} user(s) blacklisted` })
         .setTimestamp()
       ]
+    };
+  }
+});
+
+
+/* ─── DM ACCESS MODE: BLACKLIST ─────────────────────────────────── */
+registry.define({
+  name: 'dm mode blacklist',
+  aliases: ['dm access blacklist', 'dm blacklist mode'],
+  group: 'dmlogger',
+  usage: '@bot dm mode blacklist',
+  desc: 'Relay everyone except blacklisted users',
+  async run({ ctx }) {
+    store.setDmAccessMode('blacklist');
+    const logger = store.getDmLogger();
+
+    return {
+      embeds: [loggerPanel(ctx, 'Blacklist Mode Enabled', [
+        '🟧 **Access mode switched to blacklist.**',
+        '',
+        ui.bullet([
+          'Incoming DMs from normal users will be relayed/logged by default.',
+          `Users on the blacklist stay blocked: \`${logger.blacklist?.length || 0}\``,
+          'Use `@bot dm blacklist add <user id>` to block someone.'
+        ])
+      ], ICY.amber)]
+    };
+  }
+});
+
+/* ─── DM ACCESS MODE: WHITELIST ─────────────────────────────────── */
+registry.define({
+  name: 'dm mode whitelist',
+  aliases: ['dm access whitelist', 'dm whitelist mode'],
+  group: 'dmlogger',
+  usage: '@bot dm mode whitelist',
+  desc: 'Only relay users with whitelist access',
+  async run({ ctx }) {
+    store.setDmAccessMode('whitelist');
+    const logger = store.getDmLogger();
+
+    return {
+      embeds: [loggerPanel(ctx, 'Whitelist Mode Enabled', [
+        '🧊 **Access mode switched to whitelist.**',
+        '',
+        ui.bullet([
+          'Only users in the whitelist will have DM activity relayed/logged.',
+          `Whitelisted users: \`${logger.whitelist?.length || 0}\``,
+          'Use `@bot dm whitelist add <user id>` to grant access.',
+          'Use `@bot dm whitelist list` to review access.'
+        ])
+      ], ICY.frost)]
+    };
+  }
+});
+
+/* ─── WHITELIST ADD ─────────────────────────────────────────────── */
+registry.define({
+  name: 'dm whitelist add',
+  aliases: ['dm allow add', 'dm access add'],
+  group: 'dmlogger',
+  usage: '@bot dm whitelist add <id>',
+  desc: 'Grant a user DM whitelist access',
+  args: [{ name: 'user', type: 'user', required: true }],
+  async run({ ctx, args }) {
+    const userId = String(args.user);
+
+    if (store.isWhitelisted(userId)) {
+      return { embeds: [ui.warn('Already Whitelisted', `<@${userId}> already has DM whitelist access.`)] };
+    }
+
+    store.whitelistAdd(userId);
+    store.blacklistRemove(userId);
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    return {
+      embeds: [loggerPanel(ctx, 'Whitelist Access Granted', [
+        ui.bullet([
+          `**User:** ${user ? `**${user.tag}**` : `<@${userId}>`}  \`${userId}\``,
+          'They can now be relayed/logged when DM whitelist mode is active.',
+          'They were also removed from the blacklist if present.'
+        ])
+      ], ICY.success)]
+    };
+  }
+});
+
+/* ─── WHITELIST REMOVE ──────────────────────────────────────────── */
+registry.define({
+  name: 'dm whitelist remove',
+  aliases: ['dm allow remove', 'dm access remove'],
+  group: 'dmlogger',
+  usage: '@bot dm whitelist remove <id>',
+  desc: 'Revoke a user DM whitelist access',
+  args: [{ name: 'user', type: 'user', required: true }],
+  async run({ ctx, args }) {
+    const userId = String(args.user);
+
+    if (!store.isWhitelisted(userId)) {
+      return { embeds: [ui.warn('Not Whitelisted', `<@${userId}> does not have DM whitelist access.`)] };
+    }
+
+    store.whitelistRemove(userId);
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    return {
+      embeds: [loggerPanel(ctx, 'Whitelist Access Revoked', [
+        ui.bullet([
+          `**User:** ${user ? `**${user.tag}**` : `<@${userId}>`}  \`${userId}\``,
+          'In whitelist mode, this user will no longer be relayed/logged.'
+        ])
+      ], ICY.warn)]
+    };
+  }
+});
+
+/* ─── WHITELIST LIST ────────────────────────────────────────────── */
+registry.define({
+  name: 'dm whitelist list',
+  aliases: ['dm whitelist', 'dm allow list', 'dm access list'],
+  group: 'dmlogger',
+  usage: '@bot dm whitelist list',
+  desc: 'Show all users with DM whitelist access',
+  async run({ ctx }) {
+    const logger = store.getDmLogger();
+    const lines = await userLines(ctx, logger.whitelist || []);
+    const mode = logger.accessMode === 'whitelist' ? 'Whitelist mode is active' : 'Blacklist mode is active';
+
+    return {
+      embeds: [loggerPanel(ctx, `DM Whitelist (${logger.whitelist?.length || 0})`, [
+        `**Mode:** \`${mode}\``,
+        '',
+        ...lines
+      ], logger.accessMode === 'whitelist' ? ICY.frost : ICY.amber, {
+        footer: `${logger.whitelist?.length || 0} whitelisted user(s) • DM Access Matrix`
+      })]
     };
   }
 });
@@ -279,10 +438,12 @@ registry.define({
           icyDivider(),
           ui.codeTable({
             Enabled:     logger.enabled ? '✅ yes' : '❌ no',
-            Mode:        logger.mode || 'not set',
+            Relay:       logger.mode || 'not set',
+            Access:      logger.accessMode === 'whitelist' ? 'whitelist only' : 'blacklist mode',
             Server:      guild ? guild.name : (logger.targetGuild || 'not set'),
             Category:    category ? category.name : (logger.targetCategory || 'not set'),
             Blacklisted: logger.blacklist?.length || 0,
+            Whitelisted: logger.whitelist?.length || 0,
             'Log chans': Object.keys(logger.threads || {}).length,
           }),
           icyDivider(),

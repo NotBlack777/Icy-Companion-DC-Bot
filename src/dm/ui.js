@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *   ICY COMPANION — Futuristic Icy UI System
- *   Sleek, neon, cyberpunk-inspired embed builder
+ *   ICY COMPANION — Sunset Ice DM UI System
+ *   Orange-sky-to-icy-blue embeds for owner control panels.
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -10,25 +10,25 @@ const { EmbedBuilder } = require('discord.js');
 // ─── Icy Color Palette ────────────────────────────────────────────
 const ICY = {
   // Core
-  frost:       0x00d4ff,  // Bright icy cyan — primary brand
-  glacier:     0x00b4d8,  // Deep arctic blue — secondary
-  midnight:    0x0a1628,  // Dark navy — background tint
-  deepIce:     0x030f1a,  // Near-black arctic — darkest
+  frost:       0x00d4ff,
+  glacier:     0x0ea5e9,
+  midnight:    0x101722,
+  deepIce:     0x070b12,
 
   // Accents
-  neon:        0x7df9ff,  // Neon ice — highlights
-  violet:      0x9b5de5,  // Violet accent — contrast
-  pink:        0xf72585,  // Hot pink — errors / alerts
-  mint:        0x00f5d4,  // Mint — success
-  amber:       0xffd60a,  // Amber — warnings
-  lava:        0xff4d6d,  // Lava red — danger/fail
+  neon:        0x7dd3fc,
+  violet:      0xfb8500,
+  pink:        0xff6b35,
+  mint:        0x00f5d4,
+  amber:       0xffb703,
+  lava:        0xff3d71,
 
   // Functional
-  success:     0x00f5a0,  // Neon green — success
-  error:       0xff3d71,  // Neon red — error
-  warn:        0xffaa00,  // Neon orange — warning
-  info:        0x00d4ff,  // Icy blue — info
-  brand:       0x00c8ff,  // Brand blue
+  success:     0x00f5a0,
+  error:       0xff3d71,
+  warn:        0xfb8500,
+  info:        0x00d4ff,
+  brand:       0xfb8500,
 
   // Text
   white:       0xffffff,
@@ -37,137 +37,152 @@ const ICY = {
 };
 
 // ─── Decorative Constants ──────────────────────────────────────────
-const DIVIDER   = '─'.repeat(42);
-const THIN_DIV  = '─'.repeat(42);
-const GLOW_LINE = '═'.repeat(42);
-const CORNER_TL = '┌';
-const CORNER_TR = '┐';
-const CORNER_BL = '└';
-const CORNER_BR = '┘';
-const BAR_FULL  = '█';
-const BAR_EMPTY = '░';
+const DIVIDER   = '🟨🟧━━━━━━━━━━━━━━━━━━🟦❄️';
+const THIN_DIV  = '🟧────────────────────🧊';
+const GLOW_LINE = '🌅 ✦ 🟧 ✦ 🧊 ✦ 🟦 ✦ ❄️';
+const CORNER_TL = '╭';
+const CORNER_TR = '╮';
+const CORNER_BL = '╰';
+const CORNER_BR = '╯';
+const BAR_FULL  = '▰';
+const BAR_EMPTY = '▱';
 
-// ─── Base Embed Builder ───────────────────────────────────────────
-function base(color = ICY.frost) {
-  return new EmbedBuilder()
-    .setColor(color)
-    .setTimestamp()
-    .setFooter({ text: '✦ Icy Companion' })
-    .setFooter({
-      text: '✦ Icy Companion',
-      iconURL: undefined
-    });
-}
-
-// ─── Tier Badges ──────────────────────────────────────────────────
 const TIER_BADGES = {
   super:  '👑',
   owner:  '⭐',
   junior: '🔹',
 };
 
-// ─── Icy Panel — The signature block embed ──────────────────────
+function isUrl(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+function cleanIcon(value) {
+  return isUrl(value) ? value : undefined;
+}
+
+function truncate(text, max = 4096) {
+  const str = String(text ?? '');
+  return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+}
+
+function tone(color) {
+  if (color === ICY.success || color === ICY.mint) return { icon: '✅', label: 'Success' };
+  if (color === ICY.error || color === ICY.lava || color === ICY.pink) return { icon: '⛔', label: 'Alert' };
+  if (color === ICY.warn || color === ICY.amber) return { icon: '⚠️', label: 'Notice' };
+  if (color === ICY.violet || color === ICY.amber) return { icon: '🌅', label: 'Sunset' };
+  return { icon: '🧊', label: 'Control' };
+}
+
+// ─── Base Embed Builder ───────────────────────────────────────────
+function base(color = ICY.frost, options = {}) {
+  const { author = null, footer = null } = options;
+  const mood = tone(color);
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTimestamp();
+
+  embed.setAuthor({
+    name: author?.name || `${mood.icon} Icy Companion • ${mood.label} Panel`,
+    iconURL: cleanIcon(author?.iconURL)
+  });
+
+  embed.setFooter({
+    text: footer || '🌅 Icy Companion • Sunset Ice Control',
+    iconURL: undefined
+  });
+
+  return embed;
+}
+
+function normalizeBody(body) {
+  return (Array.isArray(body) ? body : [String(body)]).filter(item => item !== null && item !== undefined);
+}
+
+function formatDescription(lines, { color = ICY.frost, compact = false, noDivider = false } = {}) {
+  const mood = tone(color);
+  const body = lines.filter(Boolean).map(String);
+
+  if (compact) return truncate(body.join('\n'));
+
+  const out = [
+    `> ${mood.icon} **Sunset Ice Interface**`,
+    DIVIDER,
+    ...body
+  ];
+
+  if (!noDivider) out.push(THIN_DIV);
+  return truncate(out.join('\n'));
+}
+
+// ─── Sunset Ice Panel — Signature DM Card ─────────────────────────
 /**
  * Build a rich, futuristic panel embed.
  * title    — main title (supports emoji prefix)
  * body     — array of field objects or string lines
  * options  — { color, author, thumbnail, footer, compact, noDivider }
  *
- * field: { label, value, inline? }  OR  string line
+ * field: { name/label, value, inline? }  OR  string line
  */
 function panel(title, body = [], options = {}) {
+  const items = normalizeBody(body);
   const {
     color = ICY.frost,
-    author = null,       // { name, iconURL }
+    author = null,
     thumbnail = null,
-    footer = null,       // string override
+    footer = null,
     compact = false,
     noDivider = false,
   } = options;
 
-  const embed = base(color);
-
-  if (author) {
-    embed.setAuthor({
-      name: author.name || 'Icy Companion',
-      iconURL: author.iconURL || undefined,
-    });
-  }
-
-  embed.setTitle(`❄️ ${title}`);
-
-  // Build description: header + body + footer
+  const embed = base(color, { author, footer });
+  const mood = tone(color);
   const lines = [];
 
-  // Header line
-  if (!compact) {
-    lines.push(`\`\`\`\n${GLOW_LINE}\`\`\``);
-  }
+  embed.setTitle(`${mood.icon} ${title}`);
 
-  // Body
-  for (const item of body) {
+  for (const item of items) {
     if (typeof item === 'string') {
       lines.push(item);
     } else if (item && typeof item === 'object') {
-      if (item.name && item.value !== undefined) {
+      const name = item.name || item.label;
+      if (name && item.value !== undefined) {
         embed.addFields({
-          name:  `⸩ ${item.name}`,
-          value: String(item.value),
-          inline: item.inline || false,
+          name:  `◈ ${name}`,
+          value: truncate(item.value, 1024),
+          inline: Boolean(item.inline),
         });
       }
     }
   }
 
-  if (!compact && !noDivider) {
-    lines.push(`\`\`\`\n${GLOW_LINE}\`\`\``);
-  }
-
   if (lines.length) {
-    embed.setDescription(lines.join('\n'));
+    embed.setDescription(formatDescription(lines, { color, compact, noDivider }));
   }
 
   if (thumbnail) {
-    if (typeof thumbnail === 'string') embed.setThumbnail(thumbnail);
-    else embed.setThumbnail(thumbnail.url || thumbnail);
-  }
-
-  if (footer) {
-    embed.setFooter({
-      text: footer,
-      iconURL: undefined,
-    });
+    const thumb = typeof thumbnail === 'string' ? thumbnail : thumbnail.url;
+    if (cleanIcon(thumb)) embed.setThumbnail(cleanIcon(thumb));
   }
 
   return embed;
 }
 
-// ─── Simple Success ───────────────────────────────────────────────
+// ─── Simple Panels ────────────────────────────────────────────────
 function success(title, description) {
-  return panel(title, [description], {
-    color: ICY.success,
-  });
+  return panel(title, [description], { color: ICY.success });
 }
 
-// ─── Simple Error ─────────────────────────────────────────────────
 function error(title, description) {
-  return panel(title, [description], {
-    color: ICY.error,
-  });
+  return panel(title, [description], { color: ICY.error });
 }
 
-// ─── Simple Warning ───────────────────────────────────────────────
 function warn(title, description) {
-  return panel(title, [description], {
-    color: ICY.warn,
-  });
+  return panel(title, [description], { color: ICY.warn });
 }
 
-// ─── Simple Info ──────────────────────────────────────────────────
 function info(title, description) {
-  return panel(title, [description], {
-    color: ICY.info,
-  });
+  return panel(title, [description], { color: ICY.info });
 }
 
 // ─── Status Embed ─────────────────────────────────────────────────
@@ -176,49 +191,32 @@ function info(title, description) {
  * sections: [{ title, color, rows: { key: value } }]
  */
 function status(title, sections = [], options = {}) {
-  const { thumbnail = null } = options;
-  const body = [];
-  const embed = base(ICY.frost);
+  const { thumbnail = null, footer = null } = options;
+  const embed = base(ICY.frost, { footer });
 
   embed.setTitle(`❄️ ${title}`);
-  embed.setAuthor({
-    name: '✦ Icy Companion Panel',
-    iconURL: undefined,
-  });
+  embed.setDescription(formatDescription([
+    '**Live status overview**',
+    '> Values below are pulled from the current bot runtime/config.'
+  ], { color: ICY.frost }));
 
   if (thumbnail) {
     const thumb = typeof thumbnail === 'string' ? thumbnail : thumbnail.url;
-    if (thumb) embed.setThumbnail(thumb);
+    if (cleanIcon(thumb)) embed.setThumbnail(cleanIcon(thumb));
   }
 
   for (const section of sections) {
-    const secColor = section.color || ICY.glacier;
     const rows = section.rows || {};
     const entries = Object.entries(rows).filter(([, v]) => v !== undefined);
-
     if (!entries.length) continue;
 
-    const maxKey = Math.max(...entries.map(([k]) => k.length));
-    const tableLines = entries.map(([key, val]) => {
-      const padded = key.padEnd(maxKey, ' ');
-      return `  ${padded}  │  ${val}`;
-    });
-
-    const table = [
-      `\`\`\`\n  ⚡ ${section.title.toUpperCase()}`,
-      `  ${'─'.repeat(maxKey + 16)}`,
-      ...tableLines,
-      `\`\`\``
-    ].join('\n');
-
     embed.addFields({
-      name: '\u2800', // zero-width space — invisible spacer
-      value: table,
+      name: `◈ ${section.title}`,
+      value: miniTable(Object.fromEntries(entries)),
       inline: false,
     });
   }
 
-  embed.setFooter({ text: '✦ Icy Companion' });
   return embed;
 }
 
@@ -232,16 +230,12 @@ function codeTable(rows) {
   if (!entries.length) return '```\n(empty)\n```';
 
   const maxKey = Math.max(...entries.map(([k]) => String(k).length));
-  const maxVal = Math.max(...entries.map(([, v]) => String(v).length));
-
   const lines = entries.map(([key, val]) => {
     const k = String(key).padEnd(maxKey, ' ');
-    const v = String(val).padEnd(maxVal, ' ');
-    return `${k}  │  ${v}`;
+    return `${k} │ ${val}`;
   });
 
-  const sep = `${'─'.repeat(maxKey)}─┼─${'─'.repeat(maxVal)}`;
-  return `\`\`\`\n${sep}\n${lines.join('\n')}\n\`\`\``;
+  return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
 }
 
 // ─── Mini Table (inline, for field values) ───────────────────────
@@ -252,7 +246,7 @@ function miniTable(rows) {
   const entries = Object.entries(rows).filter(([, v]) => v !== undefined);
   if (!entries.length) return '_none_';
   return entries
-    .map(([k, v]) => `\`${k}\` → **${v}**`)
+    .map(([k, v]) => `**${k}**\n> ${v}`)
     .join('\n');
 }
 
@@ -260,7 +254,7 @@ function miniTable(rows) {
 function bullet(lines) {
   return lines
     .filter(Boolean)
-    .map(line => `> ${line}`)
+    .map(line => `> • ${line}`)
     .join('\n');
 }
 
@@ -281,38 +275,33 @@ function chunk(lines, limit = 3900) {
   return chunks.length ? chunks : ['(nothing to show)'];
 }
 
-// ─── Truncate ────────────────────────────────────────────────────
-function truncate(text, max = 1000) {
-  const str = String(text ?? '');
-  return str.length > max ? `${str.slice(0, max - 1)}…` : str;
-}
-
 // ─── Progress Bar ───────────────────────────────────────────────
 function progressBar(current, max, width = 10) {
-  const filled = Math.round((current / max) * width);
+  const safeMax = Math.max(Number(max) || 1, 1);
+  const ratio = Math.min(Math.max((Number(current) || 0) / safeMax, 0), 1);
+  const filled = Math.round(ratio * width);
   const empty  = width - filled;
   return `${BAR_FULL.repeat(filled)}${BAR_EMPTY.repeat(empty)}`;
 }
 
 // ─── Pad Title ───────────────────────────────────────────────────
 function icyTitle(text, width = 42) {
-  const inner = ` ✦ ${text.toUpperCase()} ✦ `;
+  const inner = ` ✦ ${String(text).toUpperCase()} ✦ `;
   const pad   = Math.max(0, Math.floor((width - inner.length) / 2));
-  return `${'─'.repeat(pad)}${inner}${'-'.repeat(width - pad - inner.length)}`;
+  return `${'─'.repeat(pad)}${inner}${'─'.repeat(Math.max(0, width - pad - inner.length))}`;
 }
 
 // ─── Loading Embed ───────────────────────────────────────────────
 function loading(title = 'Processing...') {
   return panel(title, [
-    '```\n  ⏳ Please wait...\n```',
+    '> ⏳ Please wait while I process this request...',
+    progressBar(3, 10, 12)
   ], { color: ICY.glacier });
 }
 
 // ─── Confirm Embed ───────────────────────────────────────────────
 function confirm(title, description) {
-  return panel(`✅ ${title}`, [description], {
-    color: ICY.mint,
-  });
+  return panel(title, [description], { color: ICY.mint });
 }
 
 // ─── Exported ────────────────────────────────────────────────────
@@ -348,4 +337,9 @@ module.exports = {
   GLOW_LINE,
   BAR_FULL,
   BAR_EMPTY,
+  CORNER_TL,
+  CORNER_TR,
+  CORNER_BL,
+  CORNER_BR,
+  TIER_BADGES,
 };

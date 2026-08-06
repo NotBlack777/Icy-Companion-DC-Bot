@@ -30,6 +30,17 @@ function isGuildStaff(config, interaction) {
 }
 
 /**
+ * Discord permissions OR bot-owner authority. Useful for commands where the
+ * bot performs the action with its own permissions (purges, moderation tools),
+ * so trusted bot owners do not need the matching Discord role permission.
+ */
+function hasGuildPermissionOrOwner(interaction, permission) {
+  if (!interaction.guild) return false;
+  const config = getServerConfig(interaction.guild.id);
+  return isGuildOwner(config, interaction) || Boolean(interaction.memberPermissions?.has(permission));
+}
+
+/**
  * Guard a command. Returns { ok, config } or replies and returns ok:false.
  *
  * @param {object} interaction
@@ -68,4 +79,4 @@ async function guard(interaction, level = 'any') {
   return { ok: true, config };
 }
 
-module.exports = { guard, isGuildOwner, isGuildStaff };
+module.exports = { guard, isGuildOwner, isGuildStaff, hasGuildPermissionOrOwner };

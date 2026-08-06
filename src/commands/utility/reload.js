@@ -1,20 +1,22 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder,
-  PermissionFlagsBits
-} = require('discord.js');
-
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const loadCommands = require('../../handlers/loadCommands');
+const globalStore = require('../../utils/globalStore');
 
 module.exports = {
   category: 'utility',
 
   data: new SlashCommandBuilder()
     .setName('reload')
-    .setDescription('Reload all command files')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Reload all command files'),
 
   async execute(interaction, client) {
+    if (!globalStore.isGlobalOwner(interaction.user.id)) {
+      return interaction.reply({
+        content: '❌ This command is restricted to bot owners.',
+        ephemeral: true
+      });
+    }
+
     try {
       await interaction.reply({
         content: '⏳ Reloading commands...',

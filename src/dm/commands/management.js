@@ -165,6 +165,131 @@ registry.define({
   }
 });
 
+
+/* ---------------- SERVEROWNER ADD ---------------- */
+
+registry.define({
+  name: 'serverowner add',
+  aliases: ['addserverowner', 'add-serverowner', 'serverowner-add', 'server-owner-add'],
+  group: 'management',
+  usage: '@bot serverowner add <#N/serverid> <user id>',
+  desc: 'Add an extra server bot owner',
+  secure: true,
+  args: [
+    { name: 'server', type: 'server', required: true },
+    { name: 'user', type: 'user', required: true }
+  ],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const userId = String(args.user);
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    if (!user) {
+      return { embeds: [ui.error('User not found', `Could not fetch \`${userId}\`.`)] };
+    }
+
+    const config = getServerConfig(resolved.guildId);
+    const primary = config.owner || resolved.guild.ownerId;
+    config.owner = primary;
+    config.extraOwners = Array.isArray(config.extraOwners) ? config.extraOwners : [];
+
+    if (userId === primary || userId === resolved.guild.ownerId) {
+      return { embeds: [ui.warn('Already Primary Owner', `${user.tag} is already the primary/server owner for **${resolved.guild.name}**.`)] };
+    }
+
+    if (config.extraOwners.includes(userId)) {
+      return { embeds: [ui.warn('Already Server Owner', `${user.tag} is already an extra server owner for **${resolved.guild.name}**.`)] };
+    }
+
+    config.extraOwners.push(userId);
+    saveServerConfig(resolved.guildId, config);
+
+    return {
+      embeds: [ui.success('Server Owner Added', ui.bullet([
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Owner:** ${user.tag} (<@${userId}>)`,
+        `**Access:** Can use owner/staff-level bot commands in this server.`
+      ]))]
+    };
+  }
+});
+
+/* ---------------- SERVEROWNER REMOVE ---------------- */
+
+registry.define({
+  name: 'serverowner remove',
+  aliases: ['removeserverowner', 'remove-serverowner', 'serverowner-remove', 'server-owner-remove'],
+  group: 'management',
+  usage: '@bot serverowner remove <#N/serverid> <user id>',
+  desc: 'Remove an extra server bot owner',
+  secure: true,
+  args: [
+    { name: 'server', type: 'server', required: true },
+    { name: 'user', type: 'user', required: true }
+  ],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const userId = String(args.user);
+    const config = getServerConfig(resolved.guildId);
+    const primary = config.owner || resolved.guild.ownerId;
+    config.owner = primary;
+    config.extraOwners = Array.isArray(config.extraOwners) ? config.extraOwners : [];
+
+    if (userId === primary || userId === resolved.guild.ownerId) {
+      return { embeds: [ui.error('Cannot Remove Primary', 'The primary/server owner cannot be removed here. Use `@bot setowner <server> <user>` to transfer first.')] };
+    }
+
+    if (!config.extraOwners.includes(userId)) {
+      return { embeds: [ui.warn('Not Server Owner', `<@${userId}> is not an extra server owner for **${resolved.guild.name}**.`)] };
+    }
+
+    config.extraOwners = config.extraOwners.filter(id => id !== userId);
+    saveServerConfig(resolved.guildId, config);
+
+    const user = await ctx.client.users.fetch(userId).catch(() => null);
+
+    return {
+      embeds: [ui.success('Server Owner Removed', ui.bullet([
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Owner:** ${user ? `${user.tag} (<@${userId}>)` : `<@${userId}>`}`
+      ]))]
+    };
+  }
+});
+
+/* ---------------- SERVEROWNER LIST ---------------- */
+
+registry.define({
+  name: 'serverowner list',
+  aliases: ['serverowners', 'serverowner-list', 'server-owner-list'],
+  group: 'management',
+  usage: '@bot serverowner list <#N/serverid>',
+  desc: 'List server bot owners',
+  args: [{ name: 'server', type: 'server', required: true }],
+  async run({ ctx, args }) {
+    const resolved = resolveServer(ctx.client, args.server);
+    if (!resolved.ok) return { embeds: [ui.error('Server not found', resolved.error)] };
+
+    const config = getServerConfig(resolved.guildId);
+    const primary = config.owner || resolved.guild.ownerId;
+    const extraOwners = Array.isArray(config.extraOwners) ? config.extraOwners : [];
+
+    const lines = [
+      `**Server:** ${serverLabel(resolved.guild)}`,
+      `**Primary:** <@${primary}>`,
+      '',
+      `**Extra Owners (${extraOwners.length})**`,
+      ...(extraOwners.length ? extraOwners.map(id => `> <@${id}>`) : ['> _none_'])
+    ];
+
+    return { embeds: [ui.info('Server Owners', lines.join('\n'))] };
+  }
+});
+
 /* ---------------- RESETCONFIG ---------------- */
 
 registry.define({

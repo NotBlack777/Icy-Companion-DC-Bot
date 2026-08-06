@@ -1,6 +1,10 @@
 const os = require('os');
-const { SlashCommandBuilder } = require('discord.js');
-const { createEmbed, e } = require('../../utils/uiHelper');
+const { version: discordVersion, SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e, COLORS } = require('../../utils/uiHelper');
+
+function optionalBanner() {
+  return process.env.BOT_BANNER_URL || process.env.UI_BANNER_URL || process.env.EMBED_BANNER_URL || null;
+}
 
 module.exports = {
   category: 'utility',
@@ -18,22 +22,35 @@ module.exports = {
     const users = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
     const channels = client.channels.cache.size;
     const shard = client.shard ? client.shard.ids[0] : 0;
+    const avatar = client.user.displayAvatarURL({ size: 1024 });
 
     const embed = createEmbed({
-      author: { name: client.user.tag, iconURL: client.user.displayAvatarURL() },
-      description: `### ${e('rocket')} Bot Information\n` +
-                   `> **Servers:** \`${guilds}\`\n` +
-                   `> **Users:** \`${users}\`\n` +
-                   `> **Channels:** \`${channels}\`\n\n` +
-                   `**Technical Details:**\n` +
-                   `> ${e('settings')} **Latency:** \`${client.ws.ping}ms\`\n` +
-                   `> ${e('file')} **Memory:** \`${processMem} MB\` (System: ${usedMem}/${totalMem} GB)\n` +
-                   `> ${e('loading')} **Uptime:** \`${uptime}\`\n` +
-                   `> ${e('commands')} **Shard:** \`${shard}\`\n` +
-                   `> ${e('success')} **Node.js:** \`${process.version}\``,
-      thumbnail: client.user.displayAvatarURL({ size: 1024 }),
+      author: { name: `${client.user.username} • System Status`, iconURL: avatar },
+      title: `${e('settings')} Bot Status: ${client.user.username}`,
+      description: [
+        `${e('uptime')} **Uptime:** \`${uptime}\``,
+        `${e('ram')} **RAM:** \`${processMem} MB\``,
+        `${e('library')} **Library:** \`discord.js v${discordVersion}\``,
+        '',
+        `${e('guilds')} **Guilds:** \`${guilds}\``,
+        `${e('users')} **Users:** \`${users}\``,
+        `${e('commands')} **Channels:** \`${channels}\``,
+        `${e('os')} **OS:** \`${os.platform()} ${os.arch()}\``,
+        `${e('shard')} **Shard:** \`${shard}\``,
+        '',
+        `**System:** \`${usedMem}/${totalMem} GB\` used`
+      ].join('\n'),
+      fields: [
+        { name: 'Guilds', value: `\`${guilds}\``, inline: true },
+        { name: 'Users', value: `\`${users}\``, inline: true },
+        { name: 'Ping', value: `\`${client.ws.ping}ms\``, inline: true }
+      ],
+      thumbnail: avatar,
+      image: optionalBanner(),
+      color: COLORS.orange,
       footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
-      timestamp: true
+      timestamp: true,
+      compact: true
     });
 
     await interaction.reply({ embeds: [embed] });

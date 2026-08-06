@@ -395,7 +395,7 @@ async function getLogChannel(client, user, destination) {
  * Returns true when it was logged.
  */
 async function logToChannel(client, user, payload) {
-  if (store.isBlacklisted(user.id)) return false;
+  if (!store.canLogDmUser(user.id)) return false;
 
   const destination = resolveDestination(client);
 
@@ -435,9 +435,8 @@ async function logToChannel(client, user, payload) {
  * Owners use DMs for commands, so they are skipped.
  */
 function shouldLog(userId) {
-  if (store.isBlacklisted(userId)) return false;
   if (store.hasTier(userId, 'junior')) return false;
-  return true;
+  return store.canLogDmUser(userId);
 }
 
 async function handleIncomingDm(client, message) {

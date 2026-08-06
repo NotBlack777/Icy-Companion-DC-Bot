@@ -2,6 +2,31 @@ const { EmbedBuilder } = require('discord.js');
 const globalStore = require('./globalStore');
 const defaultEmojis = require('../assets/emojis');
 
+const COLORS = {
+  frost: 0x00d4ff,
+  sky: 0x38bdf8,
+  ice: 0x7dd3fc,
+  glacier: 0x0ea5e9,
+  sunrise: 0xffb703,
+  orange: 0xfb8500,
+  amber: 0xffd166,
+  deep: 0x101722,
+  success: 0x00f5a0,
+  error: 0xff3d71,
+  warn: 0xfb8500,
+  // Kept for older command code that still asks for COLORS.violet.
+  violet: 0xfb8500,
+  pink: 0xff6b35,
+  mint: 0x00f5d4
+};
+
+const BRAND = {
+  name: 'Icy Companion',
+  footer: '🌅 Icy Companion • Sunset Ice UI',
+  divider: '🟨🟧━━━━━━━━━━━━━━━━━━🟦❄️',
+  thin: '🟧────────────────────🧊'
+};
+
 /**
  * Get an emoji by name, falling back to defaultEmojis then a string.
  */
@@ -9,55 +34,119 @@ function e(name) {
   return globalStore.getEmoji(name) || defaultEmojis[name] || '';
 }
 
+function isUrl(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+function cleanIcon(value) {
+  return isUrl(value) ? value : undefined;
+}
+
+function truncate(text, max = 4096) {
+  const str = String(text ?? '');
+  return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+}
+
+function statusIcon(color) {
+  if (color === COLORS.success || color === 0x00f5a0 || color === 0x22c55e) return e('success') || '✅';
+  if (color === COLORS.error || color === 0xff3d71 || color === 0xff4d6d || color === 0xf43f5e) return e('error') || '❌';
+  if (color === COLORS.warn || color === COLORS.orange || color === COLORS.sunrise || color === 0xffaa00 || color === 0xffd60a || color === 0xf59e0b) return '🌅';
+  return e('ice') || '🧊';
+}
+
+function normalizeAuthor(author, color) {
+  if (author === false) return null;
+
+  const icon = statusIcon(color);
+  if (!author) {
+    return { name: `${icon} ${BRAND.name}`, iconURL: undefined };
+  }
+
+  if (typeof author === 'string') {
+    return { name: author, iconURL: undefined };
+  }
+
+  return {
+    ...author,
+    name: author.name || BRAND.name,
+    iconURL: cleanIcon(author.iconURL)
+  };
+}
+
+function normalizeFooter(footer) {
+  if (footer === false) return null;
+  if (!footer) return { text: BRAND.footer };
+  if (typeof footer === 'string') return { text: footer };
+  return { ...footer, iconURL: cleanIcon(footer.iconURL) };
+}
+
+function normalizeDescription(description, { compact = false, color = COLORS.frost } = {}) {
+  if (!description) return null;
+
+  const text = String(description).trim();
+  if (!text) return null;
+  if (compact) return truncate(text);
+
+  // Give every central embed a consistent sleek-card shape without
+  // destroying command-specific Markdown already present in the body.
+  const icon = statusIcon(color);
+  const body = [
+    `> ${icon} **Sunset Ice Interface**`,
+    BRAND.divider,
+    text,
+    BRAND.thin
+  ].join('\n');
+
+  return truncate(body);
+}
+
+function normalizeField(field) {
+  if (!field) return null;
+
+  const name = String(field.name || field.label || '\u200b');
+  const value = String(field.value ?? field.description ?? '\u200b');
+
+  return {
+    name: name === '\u200b' ? name : `◈ ${name}`,
+    value: truncate(value, 1024),
+    inline: Boolean(field.inline)
+  };
+}
+
 /**
- * Creates a Moonveil-style sleek embed.
+ * Creates a polished Sunset Ice embed used by most slash-command UIs.
  */
 function createEmbed({
   title = null,
   description = null,
-  color = 0x2b2d31, // Dark grey, standard "sleek" color
+  color = COLORS.frost,
   fields = [],
   footer = null,
   thumbnail = null,
   image = null,
   author = null,
-  timestamp = false
+  timestamp = true,
+  compact = false
 }) {
   const embed = new EmbedBuilder().setColor(color);
+  const safeAuthor = normalizeAuthor(author, color);
+  const safeFooter = normalizeFooter(footer);
+  const safeDescription = normalizeDescription(description, { compact, color });
 
-  if (author) {
-    embed.setAuthor(author);
-  }
+  if (safeAuthor) embed.setAuthor(safeAuthor);
+  if (title) embed.setTitle(String(title));
+  if (safeDescription) embed.setDescription(safeDescription);
 
-  if (title) {
-    // In Moonveil style, we often put the title in the description or author
-    // but if provided, we'll use it.
-    embed.setTitle(title);
-  }
+  const safeFields = (Array.isArray(fields) ? fields : [])
+    .map(normalizeField)
+    .filter(Boolean)
+    .slice(0, 25);
 
-  if (description) {
-    embed.setDescription(description);
-  }
-
-  if (fields.length > 0) {
-    embed.addFields(fields);
-  }
-
-  if (footer) {
-    embed.setFooter(typeof footer === 'string' ? { text: footer } : footer);
-  }
-
-  if (thumbnail) {
-    embed.setThumbnail(thumbnail);
-  }
-
-  if (image) {
-    embed.setImage(image);
-  }
-
-  if (timestamp) {
-    embed.setTimestamp();
-  }
+  if (safeFields.length) embed.addFields(safeFields);
+  if (safeFooter) embed.setFooter(safeFooter);
+  if (thumbnail && cleanIcon(thumbnail)) embed.setThumbnail(cleanIcon(thumbnail));
+  if (image && cleanIcon(image)) embed.setImage(cleanIcon(image));
+  if (timestamp) embed.setTimestamp();
 
   return embed;
 }
@@ -67,7 +156,9 @@ function createEmbed({
  */
 function infoEmbed(text) {
   return createEmbed({
-    description: `${e('info')} ${text}`
+    title: 'Information',
+    description: text,
+    color: COLORS.frost
   });
 }
 
@@ -76,8 +167,9 @@ function infoEmbed(text) {
  */
 function successEmbed(text) {
   return createEmbed({
-    description: `${e('success')} ${text}`,
-    color: 0x00f5a0
+    title: 'Action Complete',
+    description: text,
+    color: COLORS.success
   });
 }
 
@@ -86,12 +178,15 @@ function successEmbed(text) {
  */
 function errorEmbed(text) {
   return createEmbed({
-    description: `${e('error')} ${text}`,
-    color: 0xff3d71
+    title: 'Action Blocked',
+    description: text,
+    color: COLORS.error
   });
 }
 
 module.exports = {
+  COLORS,
+  BRAND,
   createEmbed,
   infoEmbed,
   successEmbed,

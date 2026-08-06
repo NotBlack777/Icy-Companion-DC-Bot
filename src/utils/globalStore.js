@@ -24,6 +24,8 @@ function defaults() {
   return {
     // Owners
     superOwner: process.env.SUPER_OWNER_ID || null,
+    // Additional Super Owners with the same top-level access as superOwner.
+    superOwners: [],
     owners: [],
     juniorOwners: [],
 
@@ -54,7 +56,12 @@ function defaults() {
       mode: 'server',
       targetGuild: null,
       targetCategory: null,
+      // accessMode:
+      //   blacklist -> relay/log everyone except users in blacklist
+      //   whitelist -> relay/log only users in whitelist
+      accessMode: 'blacklist',
       blacklist: [],
+      whitelist: [],
       // userId -> channelId, used by 'server' mode
       threads: {}
     },
@@ -130,9 +137,18 @@ function getSuperOwner() {
   return data.superOwner || process.env.SUPER_OWNER_ID || null;
 }
 
+function getSuperOwners() {
+  const data = load();
+  const ids = [data.superOwner || process.env.SUPER_OWNER_ID, ...(Array.isArray(data.superOwners) ? data.superOwners : [])]
+    .filter(Boolean)
+    .map(String);
+
+  return [...new Set(ids)];
+}
+
 function isSuperOwner(userId) {
-  const owner = getSuperOwner();
-  return Boolean(owner && userId && String(owner) === String(userId));
+  if (!userId) return false;
+  return getSuperOwners().includes(String(userId));
 }
 
 function isGlobalOwner(userId) {
@@ -159,33 +175,93 @@ function hasTier(userId, tier = 'super') {
   return false;
 }
 
+function addSuperOwner(userId) {
+  return update(data => {
+    const id = String(userId);
+    data.superOwners = Array.isArray(data.superOwners) ? data.superOwners.map(String) : [];
+
+    if (String(data.superOwner || process.env.SUPER_OWNER_ID || '') === id) return;
+    if (!data.superOwners.includes(id)) data.superOwners.push(id);
+
+    // A Super Owner does not need a lower owner tier entry too.
+    data.owners = Array.isArray(data.owners) ? data.owners.filter(ownerId => String(ownerId) !== id) : [];
+    data.juniorOwners = Array.isArray(data.juniorOwners) ? data.juniorOwners.filter(ownerId => String(ownerId) !== id) : [];
+  });
+}
+
+function removeSuperOwner(userId) {
+  return update(data => {
+    const id = String(userId);
+
+    // The primary Super Owner can only be changed with transfer ownership / env.
+    if (String(data.superOwner || process.env.SUPER_OWNER_ID || '') === id) return;
+
+    data.superOwners = Array.isArray(data.superOwners)
+      ? data.superOwners.filter(ownerId => String(ownerId) !== id)
+      : [];
+  });
+}
+
 function addOwner(userId) {
   return update(data => {
-    if (!data.owners.includes(userId)) data.owners.push(userId);
+    const id = String(userId);
+    const superIds = [data.superOwner || process.env.SUPER_OWNER_ID, ...(Array.isArray(data.superOwners) ? data.superOwners : [])]
+      .filter(Boolean)
+      .map(String);
+
+    if (superIds.includes(id)) return;
+
+    data.owners = Array.isArray(data.owners) ? data.owners.map(String) : [];
+    if (!data.owners.includes(id)) data.owners.push(id);
   });
 }
 
 function removeOwner(userId) {
   return update(data => {
-    data.owners = data.owners.filter(id => id !== userId);
+    const id = String(userId);
+    data.owners = Array.isArray(data.owners)
+      ? data.owners.filter(ownerId => String(ownerId) !== id)
+      : [];
   });
 }
 
 function addJunior(userId) {
   return update(data => {
-    if (!data.juniorOwners.includes(userId)) data.juniorOwners.push(userId);
+    const id = String(userId);
+    const superIds = [data.superOwner || process.env.SUPER_OWNER_ID, ...(Array.isArray(data.superOwners) ? data.superOwners : [])]
+      .filter(Boolean)
+      .map(String);
+    const ownerIds = Array.isArray(data.owners) ? data.owners.map(String) : [];
+
+    if (superIds.includes(id) || ownerIds.includes(id)) return;
+
+    data.juniorOwners = Array.isArray(data.juniorOwners) ? data.juniorOwners.map(String) : [];
+    if (!data.juniorOwners.includes(id)) data.juniorOwners.push(id);
   });
 }
 
 function removeJunior(userId) {
   return update(data => {
-    data.juniorOwners = data.juniorOwners.filter(id => id !== userId);
+    const id = String(userId);
+    data.juniorOwners = Array.isArray(data.juniorOwners)
+      ? data.juniorOwners.filter(ownerId => String(ownerId) !== id)
+      : [];
   });
 }
 
 function setSuperOwner(userId) {
   return update(data => {
-    data.superOwner = userId;
+    const id = String(userId);
+    data.superOwner = id;
+    data.superOwners = Array.isArray(data.superOwners)
+      ? data.superOwners.filter(ownerId => String(ownerId) !== id)
+      : [];
+    data.owners = Array.isArray(data.owners)
+      ? data.owners.filter(ownerId => String(ownerId) !== id)
+      : [];
+    data.juniorOwners = Array.isArray(data.juniorOwners)
+      ? data.juniorOwners.filter(ownerId => String(ownerId) !== id)
+      : [];
   });
 }
 
@@ -294,22 +370,77 @@ function setDmLogger(patch) {
   });
 }
 
+function setDmAccessMode(mode) {
+  const normalized = String(mode || '').toLowerCase();
+  if (!['blacklist', 'whitelist'].includes(normalized)) {
+    throw new Error('DM access mode must be blacklist or whitelist');
+  }
+
+  return setDmLogger({ accessMode: normalized });
+}
+
+function getDmAccessMode() {
+  const mode = load().dmLogger.accessMode;
+  return mode === 'whitelist' ? 'whitelist' : 'blacklist';
+}
+
 function blacklistAdd(userId) {
   return update(data => {
-    if (!data.dmLogger.blacklist.includes(userId)) {
-      data.dmLogger.blacklist.push(userId);
+    const id = String(userId);
+    data.dmLogger.blacklist = Array.isArray(data.dmLogger.blacklist) ? data.dmLogger.blacklist.map(String) : [];
+    if (!data.dmLogger.blacklist.includes(id)) {
+      data.dmLogger.blacklist.push(id);
     }
   });
 }
 
 function blacklistRemove(userId) {
   return update(data => {
-    data.dmLogger.blacklist = data.dmLogger.blacklist.filter(id => id !== userId);
+    const id = String(userId);
+    data.dmLogger.blacklist = Array.isArray(data.dmLogger.blacklist)
+      ? data.dmLogger.blacklist.filter(entry => String(entry) !== id)
+      : [];
   });
 }
 
 function isBlacklisted(userId) {
-  return load().dmLogger.blacklist.includes(String(userId));
+  const logger = load().dmLogger;
+  return Array.isArray(logger.blacklist) && logger.blacklist.map(String).includes(String(userId));
+}
+
+function whitelistAdd(userId) {
+  return update(data => {
+    const id = String(userId);
+    data.dmLogger.whitelist = Array.isArray(data.dmLogger.whitelist) ? data.dmLogger.whitelist.map(String) : [];
+    if (!data.dmLogger.whitelist.includes(id)) {
+      data.dmLogger.whitelist.push(id);
+    }
+  });
+}
+
+function whitelistRemove(userId) {
+  return update(data => {
+    const id = String(userId);
+    data.dmLogger.whitelist = Array.isArray(data.dmLogger.whitelist)
+      ? data.dmLogger.whitelist.filter(entry => String(entry) !== id)
+      : [];
+  });
+}
+
+function isWhitelisted(userId) {
+  const logger = load().dmLogger;
+  return Array.isArray(logger.whitelist) && logger.whitelist.map(String).includes(String(userId));
+}
+
+function canLogDmUser(userId) {
+  const logger = load().dmLogger;
+  const id = String(userId);
+
+  if (logger.accessMode === 'whitelist') {
+    return Array.isArray(logger.whitelist) && logger.whitelist.map(String).includes(id);
+  }
+
+  return !(Array.isArray(logger.blacklist) && logger.blacklist.map(String).includes(id));
 }
 
 function setThread(userId, channelId) {
@@ -353,11 +484,14 @@ module.exports = {
   update,
 
   getSuperOwner,
+  getSuperOwners,
   setSuperOwner,
   isSuperOwner,
   isGlobalOwner,
   isJuniorOwner,
   hasTier,
+  addSuperOwner,
+  removeSuperOwner,
   addOwner,
   removeOwner,
   addJunior,
@@ -380,9 +514,15 @@ module.exports = {
 
   getDmLogger,
   setDmLogger,
+  setDmAccessMode,
+  getDmAccessMode,
   blacklistAdd,
   blacklistRemove,
   isBlacklisted,
+  whitelistAdd,
+  whitelistRemove,
+  isWhitelisted,
+  canLogDmUser,
   setThread,
   getThread,
   findUserByThread,

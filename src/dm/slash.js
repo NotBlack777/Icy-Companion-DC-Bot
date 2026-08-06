@@ -40,6 +40,11 @@ const SLASH_NAME_OVERRIDES = {
   'turn on otjoin mode': 'otjoin-on',
   'turn off otjoin mode': 'otjoin-off',
   'force restart': 'force-restart',
+  addsuperowner: 'add-super-owner',
+  removesuperowner: 'remove-super-owner',
+  'serverowner add': 'server-owner-add',
+  'serverowner remove': 'server-owner-remove',
+  'serverowner list': 'server-owner-list',
 
   // These names already exist as guild commands - prefix to avoid a clash.
   help: 'dm-help',

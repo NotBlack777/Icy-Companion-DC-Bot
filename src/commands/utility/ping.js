@@ -1,7 +1,5 @@
-const {
-  SlashCommandBuilder
-} = require('discord.js');
-const { createEmbed, e } = require('../../utils/uiHelper');
+const { SlashCommandBuilder } = require('discord.js');
+const { createEmbed, e, COLORS } = require('../../utils/uiHelper');
 
 module.exports = {
   category: 'utility',
@@ -22,11 +20,20 @@ module.exports = {
     const apiPing = sent.createdTimestamp - interaction.createdTimestamp;
 
     const embed = createEmbed({
-      description: `### ${e('rocket')} Connectivity Status\n` +
-                   `> **WebSocket:** \`${client.ws.ping}ms\`\n` +
-                   `> **API Latency:** \`${apiPing}ms\``,
+      author: { name: `${client.user.username} • Connectivity`, iconURL: client.user.displayAvatarURL() },
+      title: `${e('ping')} Connection Status`,
+      description: [
+        `${e('ping')} **WebSocket:** \`${client.ws.ping}ms\``,
+        `${e('rocket')} **API:** \`${apiPing}ms\``,
+        `${e('success')} **State:** Online`
+      ].join('\n'),
+      fields: [
+        { name: 'WS', value: `\`${client.ws.ping}ms\``, inline: true },
+        { name: 'API', value: `\`${apiPing}ms\``, inline: true }
+      ],
+      color: COLORS.sky,
       footer: { text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() },
-      timestamp: true
+      compact: true
     });
 
     await interaction.editReply({

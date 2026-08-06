@@ -11,6 +11,7 @@ const { EmbedBuilder } = require('discord.js');
 const registry = require('../registry');
 const ui        = require('../ui');
 const { resolveServer, serverLabel } = require('../../utils/serverResolver');
+const { getDisplayRolePosition, formatRolePosition, roleHexColor } = require('../../utils/rolePosition');
 const { ICY } = ui;
 
 function icyDivider() { return `\`\`\`\n${'═'.repeat(44)}\n\`\`\``; }
@@ -37,37 +38,70 @@ registry.define({
       return { embeds: [ui.error('Role Not Found', `\`${roleId}\` is not a role in **${resolved.guild.name}**.`)] };
     }
 
-    const perms    = role.permissions.toArray();
-    const highlight = ['Administrator','ManageChannels','ManageMessages','KickMembers','BanMembers','ManageRoles'].filter(p => perms.includes(p));
+    const perms = role.permissions.toArray();
+    const notablePermissions = [
+      'Administrator',
+      'ManageGuild',
+      'ManageRoles',
+      'ManageChannels',
+      'ManageMessages',
+      'KickMembers',
+      'BanMembers',
+      'ModerateMembers',
+      'MentionEveryone'
+    ];
+    const highlight = notablePermissions.filter(permission => perms.includes(permission));
+    const hierarchy = getDisplayRolePosition(resolved.guild, role);
+    const roleIcon = role.iconURL?.({ size: 256 }) || null;
 
-    return {
-      embeds: [new EmbedBuilder()
-        .setColor(role.color || ICY.frost)
-        .setAuthor({ name: '✦ Icy Companion', iconURL: ctx.client.user?.displayAvatarURL?.() || undefined })
-        .setTitle(`🎭 ${role.name}`)
-        .setDescription([
-          icyDivider(),
-          ui.codeTable({
-            Name:        role.name,
-            ID:          role.id,
-            Color:       role.color ? `#${role.color.toString(16).toUpperCase().padStart(6,'0')}` : 'default',
-            Hoisted:     role.hoist ? 'Yes' : 'No',
-            Mentionable: role.mentionable ? 'Yes' : 'No',
-            Position:    `${role.position} / ${resolved.guild.roles.cache.size}`,
-          }),
-          '',
-          highlight.length
-            ? `⚠️ **Notable Permissions:** ${highlight.map(p => `\`${p}\``).join(', ')}`
-            : `ℹ️ **Permissions:** ${perms.length ? perms.slice(0,10).join(', ') + (perms.length > 10 ? ` +${perms.length-10}` : '') : 'none'}`,
-          '',
-          `**👥 Members:** ${role.members.size}`,
-          `**📅 Created:** <t:${Math.floor(role.createdAt.getTime()/1000)}:D>`,
-          icyDivider(),
-        ].join('\n'))
-        .setFooter({ text: `✦ ${resolved.guild.name} — Role Info` })
-        .setTimestamp()
-      ]
-    };
+    const embed = ui.panel(`Role Status: ${role.name}`, [
+      `${ui.GLOW_LINE}`,
+      ui.bullet([
+        `**Server:** ${serverLabel(resolved.guild)}`,
+        `**Role:** <@&${role.id}> (\`${role.id}\`)`,
+        `**Hierarchy Position:** \`${formatRolePosition(hierarchy)}\``,
+        '**Top means #1** — higher roles are counted from the top of the server list.',
+        `**Color:** \`${roleHexColor(role)}\``,
+        `**Members:** \`${role.members.size}\``,
+        `**Created:** <t:${Math.floor(role.createdAt.getTime()/1000)}:D>`
+      ])
+    ], {
+      color: role.color || ICY.violet,
+      thumbnail: roleIcon || resolved.guild.iconURL?.({ size: 512 }) || undefined,
+      footer: `${resolved.guild.name} • Sunset Ice Role Matrix`
+    });
+
+    embed.addFields(
+      {
+        name: '◈ Hierarchy',
+        value: [
+          `**Position:** \`${hierarchy.position || '?'}\``,
+          `**Total roles:** \`${hierarchy.total}\``,
+          `**Above:** ${hierarchy.above ? `<@&${hierarchy.above.id}>` : '`None`'}`,
+          `**Below:** ${hierarchy.below ? `<@&${hierarchy.below.id}>` : '`None`'}`
+        ].join('\n'),
+        inline: true
+      },
+      {
+        name: '◈ Toggles',
+        value: [
+          `**Hoisted:** ${role.hoist ? '`Yes`' : '`No`'}`,
+          `**Mentionable:** ${role.mentionable ? '`Yes`' : '`No`'}`,
+          `**Managed:** ${role.managed ? '`Yes`' : '`No`'}`,
+          `**Unicode Icon:** ${role.unicodeEmoji || '`None`'}`
+        ].join('\n'),
+        inline: true
+      },
+      {
+        name: highlight.length ? '◈ Notable Permissions' : '◈ Permissions',
+        value: highlight.length
+          ? highlight.map(permission => `\`${permission.replace(/([a-z])([A-Z])/g, '$1 $2')}\``).join(' ')
+          : (perms.length ? perms.slice(0, 12).join(', ') + (perms.length > 12 ? ` +${perms.length - 12} more` : '') : '`None`'),
+        inline: false
+      }
+    );
+
+    return { embeds: [embed] };
   }
 });
 

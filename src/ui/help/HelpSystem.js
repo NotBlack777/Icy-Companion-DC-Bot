@@ -16,19 +16,19 @@ const { createEmbed, e } = require('../../utils/uiHelper');
 // ─── Icy Color Palette ─────────────────────────────────────────────
 const ICY = {
   frost:    0x00d4ff,
-  glacier:  0x0096c7,
-  midnight: 0x0a1628,
-  neon:     0x7df9ff,
-  violet:   0x9b5de5,
-  pink:     0xf72585,
+  glacier:  0x0ea5e9,
+  midnight: 0x101722,
+  neon:     0x7dd3fc,
+  violet:   0xfb8500,
+  pink:     0xff6b35,
   mint:     0x00f5d4,
-  amber:    0xffd60a,
-  lava:     0xff4d6d,
+  amber:    0xffb703,
+  lava:     0xff3d71,
   success:  0x00f5a0,
   error:    0xff3d71,
-  warn:     0xffaa00,
-  info:     0x00c8ff,
-  brand:    0x00c8ff,
+  warn:     0xfb8500,
+  info:     0x38bdf8,
+  brand:    0xfb8500,
 };
 
 // ─── Categories ────────────────────────────────────────────────────
@@ -128,10 +128,10 @@ const HELP_CATEGORIES = [
     color: ICY.amber,
     description: 'Manage bot owners for this server.',
     commands: [
-      { name: '/owner',               desc: 'View the primary and extra owners' },
-      { name: '/add-extra-owner',     desc: 'Add an extra bot owner' },
-      { name: '/remove-extra-owner',   desc: 'Remove an extra bot owner' },
-      { name: '/transfer-ownership',   desc: 'Transfer primary ownership' }
+      { name: '/owner-list',           desc: 'View the primary and server owners' },
+      { name: '/add-owner',            desc: 'Add a server bot owner' },
+      { name: '/remove-owner',         desc: 'Remove a server bot owner' },
+      { name: '/transfer-ownership',   desc: 'Transfer primary server ownership' }
     ]
   },
   {
@@ -220,17 +220,25 @@ function buildHomePage(client, guild) {
   const avatar = botAvatar(client);
   const prefix = guildPrefix(guild);
   const totalCmds = HELP_CATEGORIES.slice(1).reduce((sum, c) => sum + (c.commands?.length || 0), 0);
+  const categoryFields = HELP_CATEGORIES.slice(1).map(category => ({
+    name: `${category.emoji} ${category.label}`,
+    value: `${category.description}\n\`${category.commands?.length || 0} commands\``,
+    inline: true
+  }));
 
   return createEmbed({
-    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
-    description: `### ${e('rocket')} Welcome to Icy Companion\n` +
-                 `> **Managing communities with precision.**\n\n` +
-                 `**Stats Overview:**\n` +
-                 `> ${e('commands')} **${totalCmds}** Commands\n` +
-                 `> ${e('settings')} **${HELP_CATEGORIES.length - 1}** Categories\n` +
-                 `> ${e('file')} **Prefix:** \`${prefix}\`\n\n` +
-                 `**Categories:**\n` +
-                 HELP_CATEGORIES.slice(1).map(cat => `${cat.emoji} **${cat.label}** - ${cat.description}`).join('\n'),
+    author: { name: '🌅 ICY COMPANION • SUNSET ICE', iconURL: avatar || undefined },
+    title: `${e('rocket') || '🚀'} Sunset Ice Command Center`,
+    description: [
+      '**A cleaner, faster control panel for your community.**',
+      '',
+      `> ${e('commands')} **${totalCmds}** commands loaded`,
+      `> ${e('settings')} **${HELP_CATEGORIES.length - 1}** command categories`,
+      `> ${e('file')} Server prefix: \`${prefix}\``,
+      '',
+      'Pick a category below or use the dropdown to jump instantly.'
+    ].join('\n'),
+    fields: categoryFields,
     footer: { text: `Page 1/${HELP_CATEGORIES.length} • ${guild?.name || 'Direct Messages'}` },
     thumbnail: avatar,
     color: ICY.frost
@@ -240,14 +248,23 @@ function buildHomePage(client, guild) {
 // ─── Category Page ─────────────────────────────────────────────────
 function buildCategoryPage(category, page, total, avatar) {
   const commands = category.commands || [];
-
-  const cmdList = commands.map(cmd => `**${cmd.name}**\n> ${cmd.desc}`).join('\n\n');
+  const commandFields = commands.length
+    ? commands.slice(0, 25).map(cmd => ({
+      name: cmd.name,
+      value: cmd.desc,
+      inline: false
+    }))
+    : [{ name: 'No commands', value: 'This category is empty for now.', inline: false }];
 
   return createEmbed({
-    author: { name: 'ICY COMPANION', iconURL: avatar || undefined },
-    description: `### ${category.emoji} ${category.label.toUpperCase()}\n` +
-                 `> ${category.description}\n\n` +
-                 (cmdList || '*No commands in this category.*'),
+    author: { name: '🌅 ICY COMPANION • SUNSET ICE', iconURL: avatar || undefined },
+    title: `${category.emoji} ${category.label} Commands`,
+    description: [
+      `**${category.description}**`,
+      '',
+      `> Showing **${commands.length}** command${commands.length === 1 ? '' : 's'} in this category.`
+    ].join('\n'),
+    fields: commandFields,
     footer: { text: `Page ${page + 1}/${total} • Use / for commands` },
     thumbnail: avatar,
     color: category.color || ICY.frost

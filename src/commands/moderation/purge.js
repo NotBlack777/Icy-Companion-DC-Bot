@@ -5,6 +5,7 @@
  *          attachments, stickers, mentions, invites, newlines, pins
  */
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { hasGuildPermissionOrOwner } = require('../../utils/guildAuth');
 
 const ICY = { frost: 0x00d4ff, success: 0x00f5a0, error: 0xff3d71, lava: 0xff4d6d, warn: 0xffaa00 };
 
@@ -90,7 +91,7 @@ module.exports = {
     }
 
     // Check permissions
-    if (!interaction.memberPermissions?.has('ManageMessages')) {
+    if (!hasGuildPermissionOrOwner(interaction, 'ManageMessages')) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setColor(ICY.error).setTitle('❌ Missing Permissions').setDescription('You need the **Manage Messages** permission to use this command.').setFooter({ text: '✦ Icy Companion' }).setTimestamp()],
         ephemeral: true
