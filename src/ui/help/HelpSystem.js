@@ -12,24 +12,10 @@ const {
   StringSelectMenuBuilder
 } = require('discord.js');
 const { createEmbed, e } = require('../../utils/uiHelper');
+const { createColorProxy } = require('../../utils/themeManager');
 
 // ─── Icy Color Palette ─────────────────────────────────────────────
-const ICY = {
-  frost:    0x00d4ff,
-  glacier:  0x0ea5e9,
-  midnight: 0x101722,
-  neon:     0x7dd3fc,
-  violet:   0xfb8500,
-  pink:     0xff6b35,
-  mint:     0x00f5d4,
-  amber:    0xffb703,
-  lava:     0xff3d71,
-  success:  0x00f5a0,
-  error:    0xff3d71,
-  warn:     0xfb8500,
-  info:     0x38bdf8,
-  brand:    0xfb8500,
-};
+const ICY = createColorProxy();
 
 // ─── Categories ────────────────────────────────────────────────────
 const HELP_CATEGORIES = [

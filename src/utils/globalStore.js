@@ -46,6 +46,12 @@ function defaults() {
       otjoinMode: false
     },
 
+    // UI theme. Presets/custom values are resolved by utils/themeManager.
+    theme: {
+      preset: 'sunset-ice',
+      custom: null
+    },
+
     // DM logger
     dmLogger: {
       enabled: true,

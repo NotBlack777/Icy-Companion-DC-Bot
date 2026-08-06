@@ -213,6 +213,22 @@ async function runRuntimeSmokeChecks() {
     store.setDmLogger(originalLogger);
   }
 
+  const themeManager = require('../src/utils/themeManager');
+  const originalTheme = store.load().theme;
+  try {
+    themeManager.setThemePreset('arctic');
+    if (themeManager.getTheme().id !== 'arctic') fail('theme preset did not apply');
+    themeManager.setCustomTheme({ primary: '#112233', secondary: '#445566', accent: '#778899' });
+    const custom = themeManager.getTheme();
+    if (custom.id !== 'custom' || themeManager.intToHex(custom.frost) !== '#112233') {
+      fail('custom theme did not apply');
+    }
+  } finally {
+    store.update(data => {
+      data.theme = originalTheme;
+    });
+  }
+
   if (failures === before) {
     pass('UI, security embeds and owner authority checks pass');
   }

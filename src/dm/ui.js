@@ -7,39 +7,15 @@
 
 const { EmbedBuilder } = require('discord.js');
 
+const { createColorProxy, getTheme } = require('../utils/themeManager');
+
 // ─── Icy Color Palette ────────────────────────────────────────────
-const ICY = {
-  // Core
-  frost:       0x00d4ff,
-  glacier:     0x0ea5e9,
-  midnight:    0x101722,
-  deepIce:     0x070b12,
-
-  // Accents
-  neon:        0x7dd3fc,
-  violet:      0xfb8500,
-  pink:        0xff6b35,
-  mint:        0x00f5d4,
-  amber:       0xffb703,
-  lava:        0xff3d71,
-
-  // Functional
-  success:     0x00f5a0,
-  error:       0xff3d71,
-  warn:        0xfb8500,
-  info:        0x00d4ff,
-  brand:       0xfb8500,
-
-  // Text
-  white:       0xffffff,
-  lightGray:   0xb8c5d6,
-  dimGray:     0x5a6a7a,
-};
+const ICY = createColorProxy();
 
 // ─── Decorative Constants ──────────────────────────────────────────
-const DIVIDER   = '🟨🟧━━━━━━━━━━━━━━━━━━🟦❄️';
-const THIN_DIV  = '🟧────────────────────🧊';
-const GLOW_LINE = '🌅 ✦ 🟧 ✦ 🧊 ✦ 🟦 ✦ ❄️';
+function divider() { return getTheme().divider; }
+function thinDivider() { return getTheme().thin; }
+function glowLine() { return getTheme().glow; }
 const CORNER_TL = '╭';
 const CORNER_TR = '╮';
 const CORNER_BL = '╰';
@@ -88,7 +64,7 @@ function base(color = ICY.frost, options = {}) {
   });
 
   embed.setFooter({
-    text: footer || '🌅 Icy Companion • Sunset Ice Control',
+    text: footer || getTheme().footer,
     iconURL: undefined
   });
 
@@ -106,12 +82,12 @@ function formatDescription(lines, { color = ICY.frost, compact = false, noDivide
   if (compact) return truncate(body.join('\n'));
 
   const out = [
-    `> ${mood.icon} **Sunset Ice Interface**`,
-    DIVIDER,
+    `> ${mood.icon} **${getTheme().interfaceName}**`,
+    divider(),
     ...body
   ];
 
-  if (!noDivider) out.push(THIN_DIV);
+  if (!noDivider) out.push(thinDivider());
   return truncate(out.join('\n'));
 }
 
@@ -332,9 +308,9 @@ module.exports = {
   icyTitle,
 
   // Constants
-  DIVIDER,
-  THIN_DIV,
-  GLOW_LINE,
+  get DIVIDER() { return divider(); },
+  get THIN_DIV() { return thinDivider(); },
+  get GLOW_LINE() { return glowLine(); },
   BAR_FULL,
   BAR_EMPTY,
   CORNER_TL,

@@ -21,6 +21,7 @@ function loadDmCommands() {
   require('./commands/reports');
   require('./commands/staff');
   require('./commands/dmlogger');
+  require('./commands/theme');
   require('./commands/privacy');
   require('./commands/security');
   require('./commands/moderation');

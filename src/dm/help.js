@@ -136,7 +136,7 @@ function groupDescription(group) {
     info: 'Servers, status, configuration and quick lookups.',
     delete: 'Remove messages cleanly from servers or DMs.',
     broadcast: 'Send announcements and messages from one place.',
-    management: 'Manage servers, owners and attendance settings.',
+    management: 'Manage servers, owners, attendance settings and UI themes.',
     reports: 'Attendance reminders and useful reports.',
     staff: 'Add, remove and review staff across your servers.',
     dmlogger: 'Control where incoming DMs are logged.',

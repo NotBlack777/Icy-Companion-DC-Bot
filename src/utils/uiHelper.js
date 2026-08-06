@@ -1,31 +1,17 @@
 const { EmbedBuilder } = require('discord.js');
 const globalStore = require('./globalStore');
 const defaultEmojis = require('../assets/emojis');
+const { createColorProxy, getTheme } = require('./themeManager');
 
-const COLORS = {
-  frost: 0x00d4ff,
-  sky: 0x38bdf8,
-  ice: 0x7dd3fc,
-  glacier: 0x0ea5e9,
-  sunrise: 0xffb703,
-  orange: 0xfb8500,
-  amber: 0xffd166,
-  deep: 0x101722,
-  success: 0x00f5a0,
-  error: 0xff3d71,
-  warn: 0xfb8500,
-  // Kept for older command code that still asks for COLORS.violet.
-  violet: 0xfb8500,
-  pink: 0xff6b35,
-  mint: 0x00f5d4
-};
-
-const BRAND = {
-  name: 'Icy Companion',
-  footer: '🌅 Icy Companion • Sunset Ice UI',
-  divider: '🟨🟧━━━━━━━━━━━━━━━━━━🟦❄️',
-  thin: '🟧────────────────────🧊'
-};
+const COLORS = createColorProxy();
+const BRAND = {};
+Object.defineProperties(BRAND, {
+  name: { enumerable: true, get: () => 'Icy Companion' },
+  footer: { enumerable: true, get: () => getTheme().footer },
+  divider: { enumerable: true, get: () => getTheme().divider },
+  thin: { enumerable: true, get: () => getTheme().thin },
+  interfaceName: { enumerable: true, get: () => getTheme().interfaceName }
+});
 
 /**
  * Get an emoji by name, falling back to defaultEmojis then a string.
@@ -91,7 +77,7 @@ function normalizeDescription(description, { compact = false, color = COLORS.fro
   // destroying command-specific Markdown already present in the body.
   const icon = statusIcon(color);
   const body = [
-    `> ${icon} **Sunset Ice Interface**`,
+    `> ${icon} **${BRAND.interfaceName}**`,
     BRAND.divider,
     text,
     BRAND.thin
