@@ -15,6 +15,7 @@ function loadDmCommands() {
 
   // Order drives the order of the help panel groups.
   require('./commands/info');
+  require('./commands/system');
   require('./commands/deletion');
   require('./commands/broadcast');
   require('./commands/management');

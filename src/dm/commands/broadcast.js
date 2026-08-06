@@ -9,11 +9,11 @@ const ui = require('../ui');
 const { resolveServer, serverLabel } = require('../../utils/serverResolver');
 const { hexToInt } = require('../../utils/themeManager');
 
-const SEND_DELAY_MS = 900;
-const MASS_DM_DEFAULT_DELAY_MS = 1200;
-const MASS_DM_MIN_DELAY_MS = 750;
-const MASS_DM_MAX_DELAY_MS = 10000;
-const MASS_DM_PROGRESS_EVERY = 10;
+const SEND_DELAY_MS = Number(process.env.BROADCAST_SEND_DELAY_MS || 900);
+const MASS_DM_DEFAULT_DELAY_MS = Number(process.env.MASS_DM_DEFAULT_DELAY_MS || 1200);
+const MASS_DM_MIN_DELAY_MS = Number(process.env.MASS_DM_MIN_DELAY_MS || 750);
+const MASS_DM_MAX_DELAY_MS = Number(process.env.MASS_DM_MAX_DELAY_MS || 10000);
+const MASS_DM_PROGRESS_EVERY = Number(process.env.MASS_DM_PROGRESS_EVERY || 10);
 const { ICY } = ui;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -66,6 +66,7 @@ function parseMassDmOptions(raw) {
     delayMs: MASS_DM_DEFAULT_DELAY_MS,
     includeBots: false,
     dryRun: false,
+    confirmed: false,
     limit: null
   };
 
@@ -80,6 +81,7 @@ function parseMassDmOptions(raw) {
   strip(/--embed\b/gi, () => { options.mode = 'embed'; });
   strip(/--include-bots\b/gi, () => { options.includeBots = true; });
   strip(/--dry-run\b/gi, () => { options.dryRun = true; });
+  strip(/--yes\b|--confirm\b/gi, () => { options.confirmed = true; });
   strip(/--delay(?:=|\s+)(\d{2,5})\b/gi, (_all, value) => {
     options.delayMs = clamp(value, MASS_DM_MIN_DELAY_MS, MASS_DM_MAX_DELAY_MS);
   });
@@ -274,6 +276,23 @@ registry.define({
 
     if (!recipients.length) {
       return { embeds: [ui.warn('No Recipients', 'No members matched the mass DM filters.')] };
+    }
+
+    if (!options.dryRun && !options.confirmed) {
+      return {
+        embeds: [resultEmbed(ctx, 'Mass DM Confirmation Required', [
+          ui.bullet([
+            `**Server:** ${serverLabel(resolved.guild)}`,
+            `**Recipients:** \`${recipients.length}\``,
+            `**Mode:** \`${options.mode}\``,
+            `**Delay:** \`${options.delayMs}ms\``,
+            '**Safety:** run a dry-run first, then add `--yes` to send.'
+          ]),
+          '',
+          `**Dry run:** \`@bot massdm ${args.server} --dry-run --limit 10 ${ui.truncate(message, 80)}\``,
+          `**Send:** \`@bot massdm ${args.server} --yes ${options.mode === 'plain' ? '--plain ' : ''}${ui.truncate(message, 80)}\``
+        ], ICY.warn)]
+      };
     }
 
     const failures = [];

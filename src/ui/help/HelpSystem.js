@@ -128,19 +128,22 @@ const HELP_CATEGORIES = [
     description: 'Owner-only @bot commands used in DMs or by mentioning the bot.',
     examples: [
       '`@bot massdm #1 --dry-run --limit 10 Hello team!`',
-      '`@bot massdm #1 --plain --delay 1500 Hello everyone!`',
+      '`@bot massdm #1 --yes --plain --delay 1500 Hello everyone!`',
       '`@bot theme test #00D4FF #FB8500 #38BDF8`',
       '`@bot dm whitelist list`'
     ],
     commands: [
-      { name: '@bot massdm', desc: 'Mass DM members in one server with progress + rate delay', aliases: ['mass dm', 'dm all', 'dmall', 'mass-dm'], example: '@bot massdm #1 --embed --title "Update" Hello!' },
+      { name: '@bot massdm', desc: 'Mass DM members in one server with progress + rate delay. Needs --yes to actually send.', aliases: ['mass dm', 'dm all', 'dmall', 'mass-dm'], example: '@bot massdm #1 --dry-run --limit 10 Hello!' },
       { name: '@bot broadcast', desc: 'Post an announcement to a sendable channel in every server', aliases: ['bc'], example: '@bot broadcast Maintenance starts soon.' },
       { name: '@bot announce', desc: 'Post an announcement in a specific channel', example: '@bot announce #1 123456789012345678 Hello!' },
       { name: '@bot dm', desc: 'Send a plain direct message to one user', example: '@bot dm 773827814267813928 hello' },
       { name: '@bot theme', desc: 'Show/apply/test/save custom UI themes', aliases: ['themes', 'theme presets', 'set theme', 'theme preview'], example: '@bot theme save orange-sky #00D4FF #FB8500 #38BDF8' },
       { name: '@bot dm mode whitelist', desc: 'Only relay/log whitelisted DM users', aliases: ['dm access whitelist', 'dm whitelist mode'] },
       { name: '@bot dm whitelist add', desc: 'Grant a user DM whitelist access', aliases: ['dm allow add', 'dm access add'] },
-      { name: '@bot serverowner add', desc: 'Add a server bot owner from DMs', aliases: ['addserverowner', 'server-owner-add'] }
+      { name: '@bot serverowner add', desc: 'Add a server bot owner from DMs', aliases: ['addserverowner', 'server-owner-add'] },
+      { name: '@bot health', desc: 'Check uptime, memory, theme and DM logger status', aliases: ['system', 'diagnostics'] },
+      { name: '@bot exportconfig', desc: 'Export server config backup JSON', aliases: ['config export', 'backupconfig'] },
+      { name: '@bot importconfig', desc: 'Restore a config backup from JSON', aliases: ['config import', 'restoreconfig'] }
     ]
   },
   {
@@ -151,6 +154,7 @@ const HELP_CATEGORIES = [
     description: 'General utility and fun commands.',
     commands: [
       { name: '/ping',         desc: 'Check bot latency' },
+      { name: '/health',       desc: 'View bot health and runtime status' },
       { name: '/uptime',       desc: 'View bot uptime' },
       { name: '/server-info',  desc: 'View server information', aliases: ['/serverinfo'] },
       { name: '/bot-info',     desc: 'View bot information', aliases: ['/botinfo'] },
@@ -196,6 +200,7 @@ const HELP_CATEGORIES = [
       { name: '/set-automod',      desc: 'Configure auto-moderation filters' },
       { name: '/word-filter',      desc: 'Manage auto-mod word filter list' },
       { name: '/set-embed-colors', desc: 'Customize bot embed colors' },
+      { name: '/theme',            desc: 'Set or preview this server theme override', example: '/theme set name:sunset-ice' },
       { name: '/maintenance',      desc: 'Disable modules or individual commands with a maintenance note', example: '/maintenance command command:ban enabled:true note:Updating ban logs' },
       { name: '/rate-limit',       desc: 'Set, view, or turn off per-command cooldowns', example: '/rate-limit set enabled:true seconds:5' },
       { name: '/set-mod-log',      desc: 'Set the mod log channel' },

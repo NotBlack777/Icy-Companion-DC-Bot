@@ -1,4 +1,7 @@
+const { AsyncLocalStorage } = require('async_hooks');
 const store = require('./globalStore');
+
+const themeScope = new AsyncLocalStorage();
 
 const PRESETS = {
   'sunset-ice': {
@@ -183,8 +186,28 @@ function normalizeThemeConfig(config = {}) {
   };
 }
 
+function getScopedGuildTheme() {
+  const guildId = themeScope.getStore()?.guildId;
+  if (!guildId) return null;
+
+  try {
+    const { getServerConfig } = require('./configManager');
+    const guildTheme = getServerConfig(guildId).theme;
+    if (guildTheme?.preset) return guildTheme;
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function getThemeConfig() {
-  return normalizeThemeConfig(store.load().theme);
+  return normalizeThemeConfig(getScopedGuildTheme() || store.load().theme);
+}
+
+function runWithThemeContext(guildId, task) {
+  if (!guildId || typeof task !== 'function') return task();
+  return themeScope.run({ guildId: String(guildId) }, task);
 }
 
 function buildCustomTheme(custom = {}, id = 'custom') {
@@ -268,19 +291,31 @@ function createColorProxy() {
   });
 }
 
-function setThemePreset(preset) {
+function setThemeConfigTarget(target, updater) {
+  if (target?.guildId) {
+    const { getServerConfig, saveServerConfig } = require('./configManager');
+    const config = getServerConfig(target.guildId);
+    updater(config);
+    saveServerConfig(target.guildId, config);
+    return config;
+  }
+
+  return store.update(updater);
+}
+
+function setThemePreset(preset, target = null) {
   const key = String(preset || '').toLowerCase();
   const savedKey = slugThemeName(key);
   const config = getThemeConfig();
 
   if (PRESETS[key]) {
-    return store.update(data => {
+    return setThemeConfigTarget(target, data => {
       data.theme = { ...(data.theme || {}), preset: key, saved: savedThemesFrom(data.theme) };
     });
   }
 
   if (config.saved[savedKey]) {
-    return store.update(data => {
+    return setThemeConfigTarget(target, data => {
       data.theme = { ...(data.theme || {}), preset: `${SAVED_PREFIX}${savedKey}`, saved: savedThemesFrom(data.theme) };
     });
   }
@@ -288,7 +323,7 @@ function setThemePreset(preset) {
   throw new Error(`Unknown theme. Use one of: ${listThemes().map(t => t.id).join(', ')}, custom.`);
 }
 
-function setCustomTheme({ primary, secondary, accent, name = 'Custom Theme' }) {
+function setCustomTheme({ primary, secondary, accent, name = 'Custom Theme' }, target = null) {
   const custom = {
     name,
     primary: hexToInt(primary, 'primary'),
@@ -296,7 +331,7 @@ function setCustomTheme({ primary, secondary, accent, name = 'Custom Theme' }) {
     accent: hexToInt(accent, 'accent')
   };
 
-  return store.update(data => {
+  return setThemeConfigTarget(target, data => {
     data.theme = { ...(data.theme || {}), preset: 'custom', custom, saved: savedThemesFrom(data.theme) };
   });
 }
@@ -358,9 +393,9 @@ function deleteSavedTheme(name) {
   });
 }
 
-function resetTheme() {
-  return store.update(data => {
-    data.theme = { ...(data.theme || {}), preset: DEFAULT_PRESET, custom: null, saved: savedThemesFrom(data.theme) };
+function resetTheme(target = null) {
+  return setThemeConfigTarget(target, data => {
+    data.theme = { ...(data.theme || {}), preset: target?.guildId ? null : DEFAULT_PRESET, custom: null, saved: savedThemesFrom(data.theme) };
   });
 }
 
@@ -415,6 +450,7 @@ module.exports = {
   intToHex,
   slugThemeName,
   getThemeConfig,
+  runWithThemeContext,
   getTheme,
   getColor,
   createColorProxy,

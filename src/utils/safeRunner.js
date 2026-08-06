@@ -1,3 +1,5 @@
+const { recordAudit } = require('./auditLog');
+
 async function replySafely(interaction, payload) {
   try {
     if (interaction.deferred || interaction.replied) {
@@ -37,9 +39,33 @@ module.exports = async function safeRun(command, interaction, client, config) {
       extraOwners: []
     };
 
-    return await command.execute(interaction, client, safeConfig);
+    const result = await command.execute(interaction, client, safeConfig);
+
+    if (command.category === 'owner' || command.category === 'settings' || command.category === 'dm') {
+      recordAudit({
+        surface: 'slash',
+        command: interaction.commandName,
+        category: command.category,
+        userId: interaction.user?.id,
+        guildId: interaction.guild?.id || null,
+        channelId: interaction.channel?.id || null,
+        status: 'ok'
+      });
+    }
+
+    return result;
   } catch (err) {
     console.error(`[SAFE ERROR] ${interaction.commandName}`, err);
+    recordAudit({
+      surface: 'slash',
+      command: interaction.commandName,
+      category: command?.category || null,
+      userId: interaction.user?.id,
+      guildId: interaction.guild?.id || null,
+      channelId: interaction.channel?.id || null,
+      status: 'error',
+      error: String(err.message || err).slice(0, 300)
+    });
 
     return replySafely(interaction, {
       content: '❌ Command failed safely. Error handled.',
